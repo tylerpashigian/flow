@@ -9,6 +9,12 @@ onlyBuiltDependencies:
   - lightningcss
 
 dependencies:
+  '@hugeicons/core-free-icons':
+    specifier: ^4.0.0
+    version: 4.0.0
+  '@hugeicons/react':
+    specifier: ^1.1.6
+    version: 1.1.6(react@19.2.4)
   '@prisma/adapter-pg':
     specifier: ^7.4.2
     version: 7.6.0
@@ -48,6 +54,9 @@ dependencies:
   '@tanstack/react-start':
     specifier: latest
     version: 1.167.12(react-dom@19.2.4)(react@19.2.4)(vite@7.3.1)
+  '@tanstack/react-virtual':
+    specifier: ^3.13.23
+    version: 3.13.23(react-dom@19.2.4)(react@19.2.4)
   '@tanstack/router-plugin':
     specifier: ^1.132.0
     version: 1.167.8(@tanstack/react-router@1.168.7)(vite@7.3.1)
@@ -69,6 +78,9 @@ dependencies:
   clsx:
     specifier: ^2.1.1
     version: 2.1.1
+  date-fns:
+    specifier: ^4.1.0
+    version: 4.1.0
   lucide-react:
     specifier: ^0.577.0
     version: 0.577.0(react@19.2.4)
@@ -899,6 +911,18 @@ packages:
       hono: ^4
     dependencies:
       hono: 4.12.9
+    dev: false
+
+  /@hugeicons/core-free-icons@4.0.0:
+    resolution: {integrity: sha512-bzfbKumv3ke3ajbe2MyXi9i0I/cdsZ6n/mO9EfIPNSL++pHLqs7nSGRIVUtjF4xrrEyVkfhxssv4Jek8DPA6gA==}
+    dev: false
+
+  /@hugeicons/react@1.1.6(react@19.2.4):
+    resolution: {integrity: sha512-c2LhXJMAW5wN1pC/smBXG0YPqUON6ceR/ZdXHCjEI9KvB+hjtqYjmzIxok5hAQOeXGz0WtORgCQMzqewFKAZwg==}
+    peerDependencies:
+      react: '>=16.0.0'
+    dependencies:
+      react: 19.2.4
     dev: false
 
   /@humanfs/core@0.19.1:
@@ -3347,6 +3371,17 @@ packages:
       use-sync-external-store: 1.6.0(react@19.2.4)
     dev: false
 
+  /@tanstack/react-virtual@3.13.23(react-dom@19.2.4)(react@19.2.4):
+    resolution: {integrity: sha512-XnMRnHQ23piOVj2bzJqHrRrLg4r+F86fuBcwteKfbIjJrtGxb4z7tIvPVAe4B+4UVwo9G4Giuz5fmapcrnZ0OQ==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    dependencies:
+      '@tanstack/virtual-core': 3.13.23
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+    dev: false
+
   /@tanstack/router-core@1.168.6:
     resolution: {integrity: sha512-okCno3pImpLFQMJ/4zqEIGjIV5yhxLGj0JByrzQDQehORN1y1q6lJUezT0KPK5qCQiKUApeWaboLPjgBVx1kaQ==}
     engines: {node: '>=20.19'}
@@ -3536,6 +3571,10 @@ packages:
 
   /@tanstack/store@0.9.3:
     resolution: {integrity: sha512-8reSzl/qGWGGVKhBoxXPMWzATSbZLZFWhwBAFO9NAyp0TxzfBP0mIrGb8CP8KrQTmvzXlR/vFPPUrHTLBGyFyw==}
+    dev: false
+
+  /@tanstack/virtual-core@3.13.23:
+    resolution: {integrity: sha512-zSz2Z2HNyLjCplANTDyl3BcdQJc2k1+yyFoKhNRmCr7V7dY8o8q5m8uFTI1/Pg1kL+Hgrz6u3Xo6eFUB7l66cg==}
     dev: false
 
   /@tanstack/virtual-file-routes@1.161.7:
@@ -4560,6 +4599,10 @@ packages:
       whatwg-url: 16.0.1
     transitivePeerDependencies:
       - '@noble/hashes'
+
+  /date-fns@4.1.0:
+    resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
+    dev: false
 
   /dayjs@1.11.20:
     resolution: {integrity: sha512-YbwwqR/uYpeoP4pu043q+LTDLFBLApUP6VxRihdfNTqu4ubqMlGDLd6ErXhEgsyvY0K6nCs7nggYumAN+9uEuQ==}

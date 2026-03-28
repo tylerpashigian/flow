@@ -4,7 +4,7 @@ import ThemeToggle from './ThemeToggle'
 
 export default function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--header-bg)] px-4 backdrop-blur-lg">
+    <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--header-bg)] px-4 backdrop-blur-lg w-full">
       <nav className="page-wrap flex flex-wrap items-center gap-x-3 gap-y-2 py-3 sm:py-4">
         <h2 className="m-0 flex-shrink-0 text-base font-semibold tracking-tight">
           <Link
@@ -59,20 +59,12 @@ export default function Header() {
             Home
           </Link>
           <Link
-            to="/about"
+            to="/planner"
             className="nav-link"
             activeProps={{ className: 'nav-link is-active' }}
           >
-            About
+            Planner
           </Link>
-          <a
-            href="https://tanstack.com/start/latest/docs/framework/react/overview"
-            className="nav-link"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Docs
-          </a>
           <details className="relative w-full sm:w-auto">
             <summary className="nav-link list-none cursor-pointer">
               Demos
