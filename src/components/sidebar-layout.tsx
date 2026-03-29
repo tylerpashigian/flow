@@ -76,7 +76,7 @@ export function SidebarLayout({ content, sidebarData }: Props) {
 
   return (
     // Main container for the entire page layout.
-    <main className="bg-custom-bg flex-1 w-full relative flex h-full min-h-0 flex-col overflow-y-hidden p-2 transition-all duration-200 ease-in-out">
+    <main className="flex-1 w-full relative flex h-full min-h-0 flex-col overflow-y-hidden p-2 transition-all duration-200 ease-in-out px-20">
       {/* Desktop Content */}
       <div className="h-full w-full flex-col flex min-h-0 flex-1">
         {/* Header Section */}
@@ -84,7 +84,7 @@ export function SidebarLayout({ content, sidebarData }: Props) {
           {/* Brand Logo */}
           <img src="/logo.png" className="h-6 w-6" />
           {/* Decorative Separator */}
-          <div className="bg-primary h-6 w-[1px] -skew-12" />
+          <div className="bg-primary h-6 w-px -skew-12" />
           {/* Brand Name/Title */}
           <p className="text-h3 text-subdued">{sidebarData.user.name}</p>
         </div>
@@ -123,10 +123,10 @@ export function SidebarLayout({ content, sidebarData }: Props) {
             */}
             <div
               className={twMerge(
-                'sidebar-wrapper border-secondary/50 absolute left-0 h-full w-full rounded-lg transition-all duration-200 ease-in-out',
+                'sidebar-wrapper border-border absolute left-0 h-full w-full rounded-lg transition-all duration-200 ease-in-out',
                 isOn &&
                   'bg-background rounded-lg-primary z-10 h-11/12 w-3xs translate-y-12 border p-2 pl-6 group-has-[.sidebar-icon-trigger:hover]:ml-[240px] group-has-[.sidebar-wrapper:hover]:ml-[240px]',
-                !isOn && 'ml-[0px] h-full border-transparent bg-transparent',
+                !isOn && 'ml-0 h-full border-transparent bg-transparent',
               )}
             >
               {/* Content inside the hoverable panel */}
@@ -193,7 +193,7 @@ export function SidebarLayout({ content, sidebarData }: Props) {
 
           {/* --- Main Content Area --- */}
           {/* This is the main panel on the right side. */}
-          <div className="bg-background border-secondary/50 h-full w-full rounded-xl border-[1px] transition-all duration-200 ease-in-out overflow-hidden flex min-h-0 flex-col">
+          <div className="bg-background border-border h-full w-full rounded-xl border transition-all duration-200 ease-in-out overflow-hidden flex min-h-0 flex-col">
             {/*
                   This div has the class `sidebar-icon-trigger`. It serves as the hover target.
                   When the user's cursor enters this div, the `group-has` condition is met,
