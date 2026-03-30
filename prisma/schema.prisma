@@ -22,6 +22,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   accounts      Account[]
+  resources     Resource[]
   sessions      Session[]
 
   @@map("user")
@@ -72,4 +73,123 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+enum PlannerTaskColor {
+  SLATE
+  BLUE
+  GREEN
+  AMBER
+  ROSE
+  VIOLET
+}
+
+enum TaskDependencyType {
+  FINISH_TO_START
+}
+
+model Plan {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  resources Resource[]
+  segments  Segment[]
+  tasks     Task[]
+
+  @@map("plan")
+}
+
+model Segment {
+  id        String   @id @default(cuid())
+  planId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  plan      Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  @@index([planId])
+  @@map("segment")
+}
+
+model Resource {
+  id             String                 @id @default(cuid())
+  planId         String
+  userId         String?
+  name           String
+  picture        String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  assignments    TaskAssignment[]
+  plan           Plan                   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  unavailability ResourceUnavailability[]
+  user           User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@index([userId])
+  @@map("resource")
+}
+
+model Task {
+  id                String           @id @default(cuid())
+  planId            String
+  segmentId         String?
+  name              String
+  color             PlannerTaskColor
+  startDayUtc       DateTime
+  durationDays      Int
+  endDayUtc         DateTime
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  assignments       TaskAssignment[]
+  dependenciesFrom  TaskDependency[] @relation("TaskDependencyPredecessor")
+  dependenciesTo    TaskDependency[] @relation("TaskDependencySuccessor")
+  plan              Plan             @relation(fields: [planId], references: [id], onDelete: Cascade)
+  segment           Segment?         @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+
+  @@index([planId, startDayUtc, endDayUtc])
+  @@index([segmentId])
+  @@map("task")
+}
+
+model TaskAssignment {
+  id         String   @id @default(cuid())
+  taskId     String
+  resourceId String
+  createdAt  DateTime @default(now())
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, resourceId])
+  @@index([resourceId, taskId])
+  @@map("task_assignment")
+}
+
+model TaskDependency {
+  id                String             @id @default(cuid())
+  predecessorTaskId String
+  successorTaskId   String
+  type              TaskDependencyType @default(FINISH_TO_START)
+  createdAt         DateTime           @default(now())
+  predecessorTask   Task               @relation("TaskDependencyPredecessor", fields: [predecessorTaskId], references: [id], onDelete: Cascade)
+  successorTask     Task               @relation("TaskDependencySuccessor", fields: [successorTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([predecessorTaskId, successorTaskId])
+  @@index([successorTaskId, predecessorTaskId])
+  @@map("task_dependency")
+}
+
+model ResourceUnavailability {
+  id          String   @id @default(cuid())
+  resourceId  String
+  startDayUtc DateTime
+  endDayUtc   DateTime
+  reason      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  resource    Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId, startDayUtc, endDayUtc])
+  @@map("resource_unavailability")
 }
