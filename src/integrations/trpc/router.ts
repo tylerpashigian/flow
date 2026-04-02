@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { createTRPCRouter, publicProcedure } from './init'
+import { plannerRouter } from './planner/router'
 
 import type { TRPCRouterRecord } from '@trpc/server'
 
@@ -22,6 +23,7 @@ const todosRouter = {
 } satisfies TRPCRouterRecord
 
 export const trpcRouter = createTRPCRouter({
+  planner: plannerRouter,
   todos: todosRouter,
 })
 export type TRPCRouter = typeof trpcRouter

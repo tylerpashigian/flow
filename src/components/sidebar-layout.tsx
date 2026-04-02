@@ -14,7 +14,6 @@ const SidebarIcon: React.FC<IconProps> = ({
   isCollapsed = false,
   ...props
 }) => {
-  console.log(isCollapsed)
   return (
     <svg
       width={size}
