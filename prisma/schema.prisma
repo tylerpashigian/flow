@@ -14,13 +14,13 @@ model Todo {
 }
 
 model User {
-  id            String    @id
+  id            String     @id
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String     @unique
+  emailVerified Boolean    @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   accounts      Account[]
   resources     Resource[]
   sessions      Session[]
@@ -89,10 +89,10 @@ enum TaskDependencyType {
 }
 
 model Plan {
-  id        String    @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   resources Resource[]
   segments  Segment[]
   tasks     Task[]
@@ -114,17 +114,21 @@ model Segment {
 }
 
 model Resource {
-  id             String                 @id @default(cuid())
-  planId         String
-  userId         String?
-  name           String
-  picture        String?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  assignments    TaskAssignment[]
-  plan           Plan                   @relation(fields: [planId], references: [id], onDelete: Cascade)
-  unavailability ResourceUnavailability[]
-  user           User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id                      String                   @id @default(cuid())
+  planId                  String
+  userId                  String?
+  name                    String
+  picture                 String?
+  capacityPercent         Int                      @default(100)
+  timezone                String                   @default("UTC")
+  workdayStartMinuteLocal Int                      @default(0)
+  workdayEndMinuteLocal   Int                      @default(1440)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  assignments             TaskAssignment[]
+  plan                    Plan                     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  unavailability          ResourceUnavailability[]
+  user                    User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([planId])
   @@index([userId])
@@ -132,21 +136,22 @@ model Resource {
 }
 
 model Task {
-  id                String           @id @default(cuid())
-  planId            String
-  segmentId         String?
-  name              String
-  color             PlannerTaskColor
-  startDayUtc       DateTime
-  durationDays      Int
-  endDayUtc         DateTime
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  assignments       TaskAssignment[]
-  dependenciesFrom  TaskDependency[] @relation("TaskDependencyPredecessor")
-  dependenciesTo    TaskDependency[] @relation("TaskDependencySuccessor")
-  plan              Plan             @relation(fields: [planId], references: [id], onDelete: Cascade)
-  segment           Segment?         @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  id                  String           @id @default(cuid())
+  planId              String
+  segmentId           String?
+  name                String
+  color               PlannerTaskColor
+  startDayUtc         DateTime
+  durationDays        Int
+  estimatedEffortDays Int?
+  endDayUtc           DateTime
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  assignments         TaskAssignment[]
+  dependenciesFrom    TaskDependency[] @relation("TaskDependencyPredecessor")
+  dependenciesTo      TaskDependency[] @relation("TaskDependencySuccessor")
+  plan                Plan             @relation(fields: [planId], references: [id], onDelete: Cascade)
+  segment             Segment?         @relation(fields: [segmentId], references: [id], onDelete: SetNull)
 
   @@index([planId, startDayUtc, endDayUtc])
   @@index([segmentId])
@@ -154,12 +159,14 @@ model Task {
 }
 
 model TaskAssignment {
-  id         String   @id @default(cuid())
-  taskId     String
-  resourceId String
-  createdAt  DateTime @default(now())
-  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  taskId          String
+  resourceId      String
+  progressPercent Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resource        Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  task            Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, resourceId])
   @@index([resourceId, taskId])

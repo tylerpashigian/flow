@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export const StandardEffortDayMinutes = 8 * 60
+
 export const PlannerTaskColorSchema = z.enum([
   'SLATE',
   'BLUE',
@@ -34,6 +36,10 @@ export const ResourceSchema = z.object({
   userId: z.string().nullable(),
   name: z.string(),
   picture: z.string().nullable(),
+  capacityPercent: z.number().int().min(0).max(100),
+  timezone: z.string().trim().min(1),
+  workdayStartMinuteLocal: z.number().int().min(0).max(1439),
+  workdayEndMinuteLocal: z.number().int().min(1).max(1440),
   createdAt: z.date(),
   updatedAt: z.date(),
 })
@@ -46,16 +52,34 @@ export const TaskSchema = z.object({
   color: PlannerTaskColorSchema,
   startDayUtc: z.date(),
   durationDays: z.number().int().min(1),
+  estimatedEffortDays: z.number().int().min(1).nullable(),
   endDayUtc: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),
+})
+
+export const TaskReadSchema = TaskSchema.extend({
+  taskProgressPercent: z.number().int().min(0).max(100),
+  projectedEndUtc: z.date(),
+  projectedDurationDays: z.number().min(0),
+  scheduleVarianceDays: z.number(),
+  assignees: z.array(
+    z.object({
+      resourceId: z.string(),
+      resourceName: z.string(),
+      resourcePicture: z.string().nullable(),
+      progressPercent: z.number().int().min(0).max(100),
+    }),
+  ),
 })
 
 export const TaskAssignmentSchema = z.object({
   id: z.string(),
   taskId: z.string(),
   resourceId: z.string(),
+  progressPercent: z.number().int().min(0).max(100),
   createdAt: z.date(),
+  updatedAt: z.date(),
 })
 
 export const TaskDependencySchema = z.object({
@@ -112,19 +136,54 @@ export const CreateSegmentInputSchema = z.object({
   name: z.string().trim().min(1),
 })
 
-export const CreateResourceInputSchema = z.object({
-  planId: z.string(),
-  userId: z.string().nullable().optional(),
-  name: z.string().trim().min(1),
-  picture: z.string().nullable().optional(),
-})
+type ResourceWorkdayWindowInput = {
+  workdayStartMinuteLocal?: number
+  workdayEndMinuteLocal?: number
+}
 
-export const UpdateResourceInputSchema = z.object({
-  id: z.string(),
-  userId: z.string().nullable().optional(),
-  name: z.string().trim().min(1).optional(),
-  picture: z.string().nullable().optional(),
-})
+const workDayWindowErrorConfig: {
+  message: string
+  path: [string]
+} = {
+  message: 'workdayEndMinuteLocal must be greater than workdayStartMinuteLocal',
+  path: ['workdayEndMinuteLocal'],
+}
+
+const hasValidWorkdayWindow = (value: ResourceWorkdayWindowInput) => {
+  if (
+    typeof value.workdayStartMinuteLocal === 'number' &&
+    typeof value.workdayEndMinuteLocal === 'number'
+  ) {
+    return value.workdayEndMinuteLocal > value.workdayStartMinuteLocal
+  }
+  return true
+}
+
+export const CreateResourceInputSchema = z
+  .object({
+    planId: z.string(),
+    userId: z.string().nullable().optional(),
+    name: z.string().trim().min(1),
+    picture: z.string().nullable().optional(),
+    capacityPercent: z.number().int().min(0).max(100).optional(),
+    timezone: z.string().trim().min(1).optional(),
+    workdayStartMinuteLocal: z.number().int().min(0).max(1439).optional(),
+    workdayEndMinuteLocal: z.number().int().min(1).max(1440).optional(),
+  })
+  .refine(hasValidWorkdayWindow, workDayWindowErrorConfig)
+
+export const UpdateResourceInputSchema = z
+  .object({
+    id: z.string(),
+    userId: z.string().nullable().optional(),
+    name: z.string().trim().min(1).optional(),
+    picture: z.string().nullable().optional(),
+    capacityPercent: z.number().int().min(0).max(100).optional(),
+    timezone: z.string().trim().min(1).optional(),
+    workdayStartMinuteLocal: z.number().int().min(0).max(1439).optional(),
+    workdayEndMinuteLocal: z.number().int().min(1).max(1440).optional(),
+  })
+  .refine(hasValidWorkdayWindow, workDayWindowErrorConfig)
 
 export const CreateTaskInputSchema = z.object({
   planId: z.string(),
@@ -133,6 +192,7 @@ export const CreateTaskInputSchema = z.object({
   color: PlannerTaskColorSchema,
   startDayUtc: IsoDateSchema,
   durationDays: z.number().int().min(1),
+  estimatedEffortDays: z.number().int().min(1).optional(),
 })
 
 export const UpdateTaskInputSchema = z.object({
@@ -142,14 +202,25 @@ export const UpdateTaskInputSchema = z.object({
   color: PlannerTaskColorSchema.optional(),
   startDayUtc: IsoDateSchema.optional(),
   durationDays: z.number().int().min(1).optional(),
+  estimatedEffortDays: z.number().int().min(1).nullable().optional(),
 })
 
 export const UpsertTaskAssignmentInputSchema = z.object({
   taskId: z.string(),
   resourceId: z.string(),
+  progressPercent: z.number().int().min(0).max(100).optional(),
 })
 
-export const RemoveTaskAssignmentInputSchema = UpsertTaskAssignmentInputSchema
+export const RemoveTaskAssignmentInputSchema = z.object({
+  taskId: z.string(),
+  resourceId: z.string(),
+})
+
+export const UpdateTaskAssignmentProgressInputSchema = z.object({
+  taskId: z.string(),
+  resourceId: z.string(),
+  progressPercent: z.number().int().min(0).max(100),
+})
 
 export const AddTaskDependencyInputSchema = z.object({
   predecessorTaskId: z.string(),

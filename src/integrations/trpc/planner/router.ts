@@ -15,12 +15,15 @@ import {
   RemoveTaskDependencyInputSchema,
   ResourceSchema,
   SegmentSchema,
+  TaskReadSchema,
   TaskAssignmentSchema,
   TaskDependencySchema,
   TaskSchema,
   UpdateResourceInputSchema,
+  UpdateTaskAssignmentProgressInputSchema,
   UpdateTaskInputSchema,
   UpsertTaskAssignmentInputSchema,
+  StandardEffortDayMinutes,
 } from './schemas'
 import {
   assertWindow,
@@ -31,6 +34,135 @@ import {
   toUtcStartOfDay,
   wouldCreateDependencyCycle,
 } from './domain'
+
+function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+function computeResourceDailyFte(
+  workdayStartMinuteLocal: number,
+  workdayEndMinuteLocal: number,
+  capacityPercent: number,
+): number {
+  const windowMinutes = Math.max(
+    0,
+    workdayEndMinuteLocal - workdayStartMinuteLocal,
+  )
+
+  // Ratio of of an 8 hour work day represented by the local work window, with a cap of 100%
+  const workdayFraction = Math.min(1, windowMinutes / StandardEffortDayMinutes)
+
+  // Ratio of valid working hours combined with the resource's capacity percentage
+  return workdayFraction * (capacityPercent / 100)
+}
+
+function assertValidWorkWindow(
+  workdayStartMinuteLocal: number,
+  workdayEndMinuteLocal: number,
+): void {
+  if (workdayEndMinuteLocal <= workdayStartMinuteLocal) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message:
+        'workdayEndMinuteLocal must be greater than workdayStartMinuteLocal',
+    })
+  }
+}
+
+function assertValidTimezone(timezone: string): void {
+  try {
+    // Throws RangeError for invalid IANA zone names.
+    Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date())
+  } catch {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Invalid timezone',
+    })
+  }
+}
+
+function computeProjectedSchedule(
+  startDayUtc: Date,
+  plannedDurationDays: number,
+  estimatedEffortDays: number | null,
+  assignments: Array<{
+    progressPercent: number
+    resource: {
+      capacityPercent: number
+      workdayStartMinuteLocal: number
+      workdayEndMinuteLocal: number
+    }
+  }>,
+): {
+  projectedDurationDays: number
+  projectedEndUtc: Date
+  scheduleVarianceDays: number
+  taskProgressPercent: number
+} {
+  const taskProgressPercent =
+    assignments.length === 0
+      ? 0
+      : Math.round(
+          assignments.reduce(
+            (sum, assignment) => sum + assignment.progressPercent,
+            0,
+          ) / assignments.length,
+        )
+
+  if (!estimatedEffortDays || assignments.length === 0) {
+    return {
+      projectedDurationDays: plannedDurationDays,
+      projectedEndUtc: new Date(
+        startDayUtc.getTime() + plannedDurationDays * 24 * 60 * 60 * 1000,
+      ),
+      scheduleVarianceDays: 0,
+      taskProgressPercent,
+    }
+  }
+
+  const totalDailyFte = assignments.reduce((sum, assignment) => {
+    return (
+      sum +
+      computeResourceDailyFte(
+        assignment.resource.workdayStartMinuteLocal,
+        assignment.resource.workdayEndMinuteLocal,
+        assignment.resource.capacityPercent,
+      )
+    )
+  }, 0)
+
+  if (totalDailyFte <= 0) {
+    return {
+      projectedDurationDays: plannedDurationDays,
+      projectedEndUtc: new Date(
+        startDayUtc.getTime() + plannedDurationDays * 24 * 60 * 60 * 1000,
+      ),
+      scheduleVarianceDays: 0,
+      taskProgressPercent,
+    }
+  }
+
+  const projectedDurationDays = roundToTwoDecimals(
+    estimatedEffortDays / totalDailyFte,
+  )
+  const projectedDurationForDateMath = Math.max(
+    1,
+    Math.ceil(projectedDurationDays),
+  )
+  const projectedEndUtc = new Date(
+    startDayUtc.getTime() + projectedDurationForDateMath * 24 * 60 * 60 * 1000,
+  )
+  const scheduleVarianceDays = roundToTwoDecimals(
+    projectedDurationDays - plannedDurationDays,
+  )
+
+  return {
+    projectedDurationDays,
+    projectedEndUtc,
+    scheduleVarianceDays,
+    taskProgressPercent,
+  }
+}
 
 async function ensurePlanExists(planId: string) {
   const plan = await prisma.plan.findUnique({ where: { id: planId } })
@@ -169,6 +301,11 @@ export const plannerRouter = createTRPCRouter({
       .output(ResourceSchema)
       .mutation(async ({ input }) => {
         await ensurePlanExists(input.planId)
+        const workdayStartMinuteLocal = input.workdayStartMinuteLocal ?? 0
+        const workdayEndMinuteLocal = input.workdayEndMinuteLocal ?? 1440
+        const timezone = input.timezone ?? 'UTC'
+        assertValidWorkWindow(workdayStartMinuteLocal, workdayEndMinuteLocal)
+        assertValidTimezone(timezone)
 
         const resource = await prisma.resource.create({
           data: {
@@ -176,6 +313,10 @@ export const plannerRouter = createTRPCRouter({
             userId: input.userId ?? null,
             name: input.name,
             picture: input.picture ?? null,
+            capacityPercent: input.capacityPercent ?? 100,
+            timezone,
+            workdayStartMinuteLocal,
+            workdayEndMinuteLocal,
           },
         })
 
@@ -186,6 +327,13 @@ export const plannerRouter = createTRPCRouter({
       .output(ResourceSchema)
       .mutation(async ({ input }) => {
         const existing = await ensureResourceExists(input.id)
+        const workdayStartMinuteLocal =
+          input.workdayStartMinuteLocal ?? existing.workdayStartMinuteLocal
+        const workdayEndMinuteLocal =
+          input.workdayEndMinuteLocal ?? existing.workdayEndMinuteLocal
+        const timezone = input.timezone ?? existing.timezone
+        assertValidWorkWindow(workdayStartMinuteLocal, workdayEndMinuteLocal)
+        assertValidTimezone(timezone)
 
         const resource = await prisma.resource.update({
           where: { id: existing.id },
@@ -193,6 +341,10 @@ export const plannerRouter = createTRPCRouter({
             userId: input.userId,
             name: input.name,
             picture: input.picture,
+            capacityPercent: input.capacityPercent,
+            timezone,
+            workdayStartMinuteLocal,
+            workdayEndMinuteLocal,
           },
         })
 
@@ -202,7 +354,7 @@ export const plannerRouter = createTRPCRouter({
   tasks: createTRPCRouter({
     listByPlanWindow: publicProcedure
       .input(ListByPlanWindowInputSchema)
-      .output(TaskSchema.array())
+      .output(TaskReadSchema.array())
       .query(async ({ input }) => {
         await ensurePlanExists(input.planId)
         assertWindow(input.windowStartUtc, input.windowEndUtc)
@@ -213,10 +365,64 @@ export const plannerRouter = createTRPCRouter({
             startDayUtc: { lt: input.windowEndUtc },
             endDayUtc: { gt: input.windowStartUtc },
           },
+          include: {
+            assignments: {
+              include: {
+                resource: {
+                  select: {
+                    id: true,
+                    name: true,
+                    picture: true,
+                    capacityPercent: true,
+                    workdayStartMinuteLocal: true,
+                    workdayEndMinuteLocal: true,
+                  },
+                },
+              },
+            },
+          },
           orderBy: [{ startDayUtc: 'asc' }, { createdAt: 'asc' }],
         })
 
-        return TaskSchema.array().parse(tasks)
+        const taskReads = tasks.map((task) => {
+          const {
+            projectedDurationDays,
+            projectedEndUtc,
+            scheduleVarianceDays,
+            taskProgressPercent,
+          } = computeProjectedSchedule(
+            task.startDayUtc,
+            task.durationDays,
+            task.estimatedEffortDays,
+            task.assignments,
+          )
+
+          return {
+            id: task.id,
+            planId: task.planId,
+            segmentId: task.segmentId,
+            name: task.name,
+            color: task.color,
+            startDayUtc: task.startDayUtc,
+            durationDays: task.durationDays,
+            estimatedEffortDays: task.estimatedEffortDays,
+            endDayUtc: task.endDayUtc,
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt,
+            taskProgressPercent,
+            projectedEndUtc,
+            projectedDurationDays,
+            scheduleVarianceDays,
+            assignees: task.assignments.map((assignment) => ({
+              resourceId: assignment.resource.id,
+              resourceName: assignment.resource.name,
+              resourcePicture: assignment.resource.picture,
+              progressPercent: assignment.progressPercent,
+            })),
+          }
+        })
+
+        return TaskReadSchema.array().parse(taskReads)
       }),
     create: publicProcedure
       .input(CreateTaskInputSchema)
@@ -256,6 +462,7 @@ export const plannerRouter = createTRPCRouter({
             color: input.color,
             startDayUtc,
             durationDays: input.durationDays,
+            estimatedEffortDays: input.estimatedEffortDays ?? null,
             endDayUtc,
           },
         })
@@ -303,6 +510,7 @@ export const plannerRouter = createTRPCRouter({
             color: input.color,
             startDayUtc: nextStart,
             durationDays: nextDuration,
+            estimatedEffortDays: input.estimatedEffortDays,
             endDayUtc: nextEnd,
           },
         })
@@ -327,8 +535,31 @@ export const plannerRouter = createTRPCRouter({
           create: {
             taskId: input.taskId,
             resourceId: input.resourceId,
+            progressPercent: input.progressPercent ?? 0,
           },
-          update: {},
+          update: {
+            progressPercent: input.progressPercent,
+          },
+        })
+
+        return TaskAssignmentSchema.parse(assignment)
+      }),
+    updateProgress: publicProcedure
+      .input(UpdateTaskAssignmentProgressInputSchema)
+      .output(TaskAssignmentSchema)
+      .mutation(async ({ input }) => {
+        await assertSamePlanForTaskAndResource(input.taskId, input.resourceId)
+
+        const assignment = await prisma.taskAssignment.update({
+          where: {
+            taskId_resourceId: {
+              taskId: input.taskId,
+              resourceId: input.resourceId,
+            },
+          },
+          data: {
+            progressPercent: input.progressPercent,
+          },
         })
 
         return TaskAssignmentSchema.parse(assignment)

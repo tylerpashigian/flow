@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'vitest'
 import {
+  CreateResourceInputSchema,
   CreateTaskInputSchema,
   ListByPlanWindowInputSchema,
   PlannerConflictSchema,
+  UpdateTaskAssignmentProgressInputSchema,
 } from './schemas'
 
 describe('planner schema contracts', () => {
@@ -54,5 +56,28 @@ describe('planner schema contracts', () => {
     })
 
     expect(parsed.conflictType).toBe('TASK_OVERLAP')
+  })
+
+  test('CreateResourceInputSchema rejects invalid work window', () => {
+    expect(() =>
+      CreateResourceInputSchema.parse({
+        planId: 'plan_1',
+        name: 'Resource',
+        capacityPercent: 50,
+        timezone: 'America/Chicago',
+        workdayStartMinuteLocal: 600,
+        workdayEndMinuteLocal: 300,
+      }),
+    ).toThrow()
+  })
+
+  test('UpdateTaskAssignmentProgressInputSchema validates progress range', () => {
+    expect(() =>
+      UpdateTaskAssignmentProgressInputSchema.parse({
+        taskId: 'task_1',
+        resourceId: 'resource_1',
+        progressPercent: 101,
+      }),
+    ).toThrow()
   })
 })
