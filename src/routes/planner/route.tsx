@@ -6,7 +6,8 @@ import {
   getTodayPlannerDayKey,
   parsePlannerDay,
 } from '@/lib/date'
-import { SidebarLayout, type SidebarData } from '@/components/sidebar-layout'
+import { SidebarLayout } from '@/components/sidebar-layout'
+import type { SidebarData } from '@/components/sidebar-layout'
 
 const searchSchema = z.object({
   date: z.string().optional(),
