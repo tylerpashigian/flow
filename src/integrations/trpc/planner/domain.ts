@@ -1,25 +1,25 @@
-import { TRPCError } from '@trpc/server'
+import { DAY_MS, STANDARD_EFFORT_DAY_MINUTES } from './constants'
 
-export interface AssignedTaskSlice {
+interface AssignedTaskSlice {
   resourceId: string
   id: string
   startDayUtc: Date
   endDayUtc: Date
 }
 
-export interface ResourceWindowSlice {
+interface ResourceWindowSlice {
   resourceId: string
   startDayUtc: Date
   endDayUtc: Date
   reason: string | null
 }
 
-export interface DependencyEdge {
+interface DependencyEdge {
   predecessorTaskId: string
   successorTaskId: string
 }
 
-export interface PlannerConflict {
+interface PlannerConflict {
   conflictType: 'TASK_OVERLAP' | 'RESOURCE_UNAVAILABLE'
   resourceId: string
   taskAId: string
@@ -29,7 +29,45 @@ export interface PlannerConflict {
   reason: string | null
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
+interface TaskReadAssignmentSlice {
+  progressPercent: number
+  resource: {
+    id: string
+    name: string
+    picture: string | null
+    capacityPercent: number
+    workdayStartMinuteLocal: number
+    workdayEndMinuteLocal: number
+  }
+}
+
+interface TaskWithAssignmentsForRead {
+  id: string
+  planId: string
+  segmentId: string | null
+  name: string
+  color: string
+  startDayUtc: Date
+  durationDays: number
+  estimatedEffortDays: number | null
+  endDayUtc: Date
+  createdAt: Date
+  updatedAt: Date
+  assignments: TaskReadAssignmentSlice[]
+}
+
+export class PlannerDomainValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'PlannerDomainValidationError'
+  }
+}
+
+export function isPlannerDomainValidationError(
+  error: unknown,
+): error is PlannerDomainValidationError {
+  return error instanceof PlannerDomainValidationError
+}
 
 export function toUtcStartOfDay(value: Date): Date {
   const normalized = new Date(value)
@@ -42,10 +80,7 @@ export function computeEndDayUtc(
   durationDays: number,
 ): Date {
   if (durationDays < 1) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: 'durationDays must be >= 1',
-    })
+    throw new PlannerDomainValidationError('durationDays must be >= 1')
   }
 
   return new Date(
@@ -55,10 +90,157 @@ export function computeEndDayUtc(
 
 export function assertWindow(windowStartUtc: Date, windowEndUtc: Date): void {
   if (windowEndUtc <= windowStartUtc) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: 'windowEndUtc must be greater than windowStartUtc',
-    })
+    throw new PlannerDomainValidationError(
+      'windowEndUtc must be greater than windowStartUtc',
+    )
+  }
+}
+
+export function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+export function computeResourceDailyFte(
+  workdayStartMinuteLocal: number,
+  workdayEndMinuteLocal: number,
+  capacityPercent: number,
+  standardEffortDayMinutes: number = STANDARD_EFFORT_DAY_MINUTES,
+): number {
+  const windowMinutes = Math.max(
+    0,
+    workdayEndMinuteLocal - workdayStartMinuteLocal,
+  )
+  const workdayFraction = Math.min(1, windowMinutes / standardEffortDayMinutes)
+
+  return workdayFraction * (capacityPercent / 100)
+}
+
+interface ProjectionAssignmentSlice {
+  progressPercent: number
+  resource: {
+    capacityPercent: number
+    workdayStartMinuteLocal: number
+    workdayEndMinuteLocal: number
+  }
+}
+
+export function computeProjectedSchedule(
+  startDayUtc: Date,
+  plannedDurationDays: number,
+  estimatedEffortDays: number | null,
+  assignments: ProjectionAssignmentSlice[],
+  standardEffortDayMinutes: number = STANDARD_EFFORT_DAY_MINUTES,
+): {
+  projectedDurationDays: number
+  projectedEndUtc: Date
+  scheduleVarianceDays: number
+  taskProgressPercent: number
+} {
+  const taskProgressPercent =
+    assignments.length === 0
+      ? 0
+      : Math.round(
+          assignments.reduce(
+            (sum, assignment) => sum + assignment.progressPercent,
+            0,
+          ) / assignments.length,
+        )
+
+  if (!estimatedEffortDays || assignments.length === 0) {
+    return {
+      projectedDurationDays: plannedDurationDays,
+      projectedEndUtc: new Date(
+        startDayUtc.getTime() + plannedDurationDays * DAY_MS,
+      ),
+      scheduleVarianceDays: 0,
+      taskProgressPercent,
+    }
+  }
+
+  const totalDailyFte = assignments.reduce((sum, assignment) => {
+    return (
+      sum +
+      computeResourceDailyFte(
+        assignment.resource.workdayStartMinuteLocal,
+        assignment.resource.workdayEndMinuteLocal,
+        assignment.resource.capacityPercent,
+        standardEffortDayMinutes,
+      )
+    )
+  }, 0)
+
+  if (totalDailyFte <= 0) {
+    return {
+      projectedDurationDays: plannedDurationDays,
+      projectedEndUtc: new Date(
+        startDayUtc.getTime() + plannedDurationDays * DAY_MS,
+      ),
+      scheduleVarianceDays: 0,
+      taskProgressPercent,
+    }
+  }
+
+  const projectedDurationDays = roundToTwoDecimals(
+    estimatedEffortDays / totalDailyFte,
+  )
+  const projectedDurationForDateMath = Math.max(
+    1,
+    Math.ceil(projectedDurationDays),
+  )
+  const projectedEndUtc = new Date(
+    startDayUtc.getTime() + projectedDurationForDateMath * DAY_MS,
+  )
+  const scheduleVarianceDays = roundToTwoDecimals(
+    projectedDurationDays - plannedDurationDays,
+  )
+
+  return {
+    projectedDurationDays,
+    projectedEndUtc,
+    scheduleVarianceDays,
+    taskProgressPercent,
+  }
+}
+
+export function mapTaskToTaskRead(
+  task: TaskWithAssignmentsForRead,
+  standardEffortDayMinutes: number = STANDARD_EFFORT_DAY_MINUTES,
+) {
+  const {
+    projectedDurationDays,
+    projectedEndUtc,
+    scheduleVarianceDays,
+    taskProgressPercent,
+  } = computeProjectedSchedule(
+    task.startDayUtc,
+    task.durationDays,
+    task.estimatedEffortDays,
+    task.assignments,
+    standardEffortDayMinutes,
+  )
+
+  return {
+    id: task.id,
+    planId: task.planId,
+    segmentId: task.segmentId,
+    name: task.name,
+    color: task.color,
+    startDayUtc: task.startDayUtc,
+    durationDays: task.durationDays,
+    estimatedEffortDays: task.estimatedEffortDays,
+    endDayUtc: task.endDayUtc,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    taskProgressPercent,
+    projectedEndUtc,
+    projectedDurationDays,
+    scheduleVarianceDays,
+    assignees: task.assignments.map((assignment) => ({
+      resourceId: assignment.resource.id,
+      resourceName: assignment.resource.name,
+      resourcePicture: assignment.resource.picture,
+      progressPercent: assignment.progressPercent,
+    })),
   }
 }
 

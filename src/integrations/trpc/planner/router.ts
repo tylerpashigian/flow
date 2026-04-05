@@ -3,12 +3,14 @@ import { prisma } from '#/db'
 import { createTRPCRouter, publicProcedure } from '../init'
 import {
   AddTaskDependencyInputSchema,
+  BoardSnapshotByWindowInputSchema,
   CreatePlanInputSchema,
   CreateResourceInputSchema,
   CreateSegmentInputSchema,
   CreateTaskInputSchema,
   ListByPlanInputSchema,
   ListByPlanWindowInputSchema,
+  PlannerBoardSnapshotSchema,
   PlannerConflictListSchema,
   PlanSchema,
   RemoveTaskAssignmentInputSchema,
@@ -23,7 +25,6 @@ import {
   UpdateTaskAssignmentProgressInputSchema,
   UpdateTaskInputSchema,
   UpsertTaskAssignmentInputSchema,
-  StandardEffortDayMinutes,
 } from './schemas'
 import {
   assertWindow,
@@ -31,29 +32,44 @@ import {
   buildUnavailabilityConflicts,
   computeEndDayUtc,
   dedupeConflicts,
+  isPlannerDomainValidationError,
+  mapTaskToTaskRead,
   toUtcStartOfDay,
   wouldCreateDependencyCycle,
 } from './domain'
+import { STANDARD_EFFORT_DAY_MINUTES } from './constants'
 
-function roundToTwoDecimals(value: number): number {
-  return Math.round(value * 100) / 100
+function mapPlannerDomainError(error: unknown): never {
+  if (isPlannerDomainValidationError(error)) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: error.message,
+    })
+  }
+
+  throw error
 }
 
-function computeResourceDailyFte(
-  workdayStartMinuteLocal: number,
-  workdayEndMinuteLocal: number,
-  capacityPercent: number,
-): number {
-  const windowMinutes = Math.max(
-    0,
-    workdayEndMinuteLocal - workdayStartMinuteLocal,
-  )
+function assertWindowOrThrowTrpc(
+  windowStartUtc: Date,
+  windowEndUtc: Date,
+): void {
+  try {
+    assertWindow(windowStartUtc, windowEndUtc)
+  } catch (error) {
+    mapPlannerDomainError(error)
+  }
+}
 
-  // Ratio of of an 8 hour work day represented by the local work window, with a cap of 100%
-  const workdayFraction = Math.min(1, windowMinutes / StandardEffortDayMinutes)
-
-  // Ratio of valid working hours combined with the resource's capacity percentage
-  return workdayFraction * (capacityPercent / 100)
+function computeEndDayUtcOrThrowTrpc(
+  startDayUtc: Date,
+  durationDays: number,
+): Date {
+  try {
+    return computeEndDayUtc(startDayUtc, durationDays)
+  } catch (error) {
+    mapPlannerDomainError(error)
+  }
 }
 
 function assertValidWorkWindow(
@@ -81,87 +97,98 @@ function assertValidTimezone(timezone: string): void {
   }
 }
 
-function computeProjectedSchedule(
-  startDayUtc: Date,
-  plannedDurationDays: number,
-  estimatedEffortDays: number | null,
-  assignments: Array<{
-    progressPercent: number
-    resource: {
-      capacityPercent: number
-      workdayStartMinuteLocal: number
-      workdayEndMinuteLocal: number
-    }
-  }>,
-): {
-  projectedDurationDays: number
-  projectedEndUtc: Date
-  scheduleVarianceDays: number
-  taskProgressPercent: number
-} {
-  const taskProgressPercent =
-    assignments.length === 0
-      ? 0
-      : Math.round(
-          assignments.reduce(
-            (sum, assignment) => sum + assignment.progressPercent,
-            0,
-          ) / assignments.length,
-        )
+async function listTaskReadsByPlanWindow(
+  planId: string,
+  windowStartUtc: Date,
+  windowEndUtc: Date,
+  segmentIds?: string[],
+) {
+  const tasks = await prisma.task.findMany({
+    where: {
+      planId,
+      startDayUtc: { lt: windowEndUtc },
+      endDayUtc: { gt: windowStartUtc },
+      ...(segmentIds && segmentIds.length > 0
+        ? { segmentId: { in: segmentIds } }
+        : {}),
+    },
+    include: {
+      assignments: {
+        include: {
+          resource: {
+            select: {
+              id: true,
+              name: true,
+              picture: true,
+              capacityPercent: true,
+              workdayStartMinuteLocal: true,
+              workdayEndMinuteLocal: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ startDayUtc: 'asc' }, { createdAt: 'asc' }],
+  })
 
-  if (!estimatedEffortDays || assignments.length === 0) {
-    return {
-      projectedDurationDays: plannedDurationDays,
-      projectedEndUtc: new Date(
-        startDayUtc.getTime() + plannedDurationDays * 24 * 60 * 60 * 1000,
-      ),
-      scheduleVarianceDays: 0,
-      taskProgressPercent,
-    }
-  }
-
-  const totalDailyFte = assignments.reduce((sum, assignment) => {
-    return (
-      sum +
-      computeResourceDailyFte(
-        assignment.resource.workdayStartMinuteLocal,
-        assignment.resource.workdayEndMinuteLocal,
-        assignment.resource.capacityPercent,
-      )
-    )
-  }, 0)
-
-  if (totalDailyFte <= 0) {
-    return {
-      projectedDurationDays: plannedDurationDays,
-      projectedEndUtc: new Date(
-        startDayUtc.getTime() + plannedDurationDays * 24 * 60 * 60 * 1000,
-      ),
-      scheduleVarianceDays: 0,
-      taskProgressPercent,
-    }
-  }
-
-  const projectedDurationDays = roundToTwoDecimals(
-    estimatedEffortDays / totalDailyFte,
+  return TaskReadSchema.array().parse(
+    tasks.map((task) => mapTaskToTaskRead(task, STANDARD_EFFORT_DAY_MINUTES)),
   )
-  const projectedDurationForDateMath = Math.max(
-    1,
-    Math.ceil(projectedDurationDays),
-  )
-  const projectedEndUtc = new Date(
-    startDayUtc.getTime() + projectedDurationForDateMath * 24 * 60 * 60 * 1000,
-  )
-  const scheduleVarianceDays = roundToTwoDecimals(
-    projectedDurationDays - plannedDurationDays,
-  )
+}
 
-  return {
-    projectedDurationDays,
-    projectedEndUtc,
-    scheduleVarianceDays,
-    taskProgressPercent,
-  }
+async function listConflictsByWindow(
+  planId: string,
+  windowStartUtc: Date,
+  windowEndUtc: Date,
+) {
+  const [assignments, unavailabilityWindows] = await Promise.all([
+    prisma.taskAssignment.findMany({
+      where: {
+        resource: { planId },
+        task: {
+          startDayUtc: { lt: windowEndUtc },
+          endDayUtc: { gt: windowStartUtc },
+        },
+      },
+      select: {
+        resourceId: true,
+        task: {
+          select: {
+            id: true,
+            startDayUtc: true,
+            endDayUtc: true,
+          },
+        },
+      },
+    }),
+    prisma.resourceUnavailability.findMany({
+      where: {
+        resource: { planId },
+        startDayUtc: { lt: windowEndUtc },
+        endDayUtc: { gt: windowStartUtc },
+      },
+      select: {
+        resourceId: true,
+        startDayUtc: true,
+        endDayUtc: true,
+        reason: true,
+      },
+    }),
+  ])
+
+  const assignedTasks = assignments.map((assignment) => ({
+    id: assignment.task.id,
+    resourceId: assignment.resourceId,
+    startDayUtc: assignment.task.startDayUtc,
+    endDayUtc: assignment.task.endDayUtc,
+  }))
+
+  const conflicts = dedupeConflicts([
+    ...buildTaskOverlapConflicts(assignedTasks),
+    ...buildUnavailabilityConflicts(assignedTasks, unavailabilityWindows),
+  ])
+
+  return PlannerConflictListSchema.parse(conflicts)
 }
 
 async function ensurePlanExists(planId: string) {
@@ -357,72 +384,13 @@ export const plannerRouter = createTRPCRouter({
       .output(TaskReadSchema.array())
       .query(async ({ input }) => {
         await ensurePlanExists(input.planId)
-        assertWindow(input.windowStartUtc, input.windowEndUtc)
+        assertWindowOrThrowTrpc(input.windowStartUtc, input.windowEndUtc)
 
-        const tasks = await prisma.task.findMany({
-          where: {
-            planId: input.planId,
-            startDayUtc: { lt: input.windowEndUtc },
-            endDayUtc: { gt: input.windowStartUtc },
-          },
-          include: {
-            assignments: {
-              include: {
-                resource: {
-                  select: {
-                    id: true,
-                    name: true,
-                    picture: true,
-                    capacityPercent: true,
-                    workdayStartMinuteLocal: true,
-                    workdayEndMinuteLocal: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: [{ startDayUtc: 'asc' }, { createdAt: 'asc' }],
-        })
-
-        const taskReads = tasks.map((task) => {
-          const {
-            projectedDurationDays,
-            projectedEndUtc,
-            scheduleVarianceDays,
-            taskProgressPercent,
-          } = computeProjectedSchedule(
-            task.startDayUtc,
-            task.durationDays,
-            task.estimatedEffortDays,
-            task.assignments,
-          )
-
-          return {
-            id: task.id,
-            planId: task.planId,
-            segmentId: task.segmentId,
-            name: task.name,
-            color: task.color,
-            startDayUtc: task.startDayUtc,
-            durationDays: task.durationDays,
-            estimatedEffortDays: task.estimatedEffortDays,
-            endDayUtc: task.endDayUtc,
-            createdAt: task.createdAt,
-            updatedAt: task.updatedAt,
-            taskProgressPercent,
-            projectedEndUtc,
-            projectedDurationDays,
-            scheduleVarianceDays,
-            assignees: task.assignments.map((assignment) => ({
-              resourceId: assignment.resource.id,
-              resourceName: assignment.resource.name,
-              resourcePicture: assignment.resource.picture,
-              progressPercent: assignment.progressPercent,
-            })),
-          }
-        })
-
-        return TaskReadSchema.array().parse(taskReads)
+        return listTaskReadsByPlanWindow(
+          input.planId,
+          input.windowStartUtc,
+          input.windowEndUtc,
+        )
       }),
     create: publicProcedure
       .input(CreateTaskInputSchema)
@@ -452,7 +420,10 @@ export const plannerRouter = createTRPCRouter({
         }
 
         const startDayUtc = toUtcStartOfDay(input.startDayUtc)
-        const endDayUtc = computeEndDayUtc(startDayUtc, input.durationDays)
+        const endDayUtc = computeEndDayUtcOrThrowTrpc(
+          startDayUtc,
+          input.durationDays,
+        )
 
         const task = await prisma.task.create({
           data: {
@@ -500,7 +471,7 @@ export const plannerRouter = createTRPCRouter({
           ? toUtcStartOfDay(input.startDayUtc)
           : existing.startDayUtc
         const nextDuration = input.durationDays ?? existing.durationDays
-        const nextEnd = computeEndDayUtc(nextStart, nextDuration)
+        const nextEnd = computeEndDayUtcOrThrowTrpc(nextStart, nextDuration)
 
         const task = await prisma.task.update({
           where: { id: existing.id },
@@ -640,62 +611,105 @@ export const plannerRouter = createTRPCRouter({
         return TaskDependencySchema.parse(dependency)
       }),
   }),
+  board: createTRPCRouter({
+    snapshotByWindow: publicProcedure
+      .input(BoardSnapshotByWindowInputSchema)
+      .output(PlannerBoardSnapshotSchema)
+      .query(async ({ input }) => {
+        const plan = await ensurePlanExists(input.planId)
+        assertWindowOrThrowTrpc(input.windowStartUtc, input.windowEndUtc)
+
+        const tasks = await listTaskReadsByPlanWindow(
+          input.planId,
+          input.windowStartUtc,
+          input.windowEndUtc,
+          input.segmentIds,
+        )
+
+        const taskIds = [...new Set(tasks.map((task) => task.id))]
+        const [dependencies, conflicts] = await Promise.all([
+          taskIds.length === 0
+            ? Promise.resolve([])
+            : prisma.taskDependency.findMany({
+                where: {
+                  predecessorTask: { planId: input.planId },
+                  successorTask: { planId: input.planId },
+                  OR: [
+                    { predecessorTaskId: { in: taskIds } },
+                    { successorTaskId: { in: taskIds } },
+                  ],
+                },
+                orderBy: { createdAt: 'asc' },
+              }),
+          listConflictsByWindow(
+            input.planId,
+            input.windowStartUtc,
+            input.windowEndUtc,
+          ),
+        ])
+
+        const resourceIds = [
+          ...new Set(
+            tasks
+              .flatMap((task) => task.assignees)
+              .map((assignee) => assignee.resourceId),
+          ),
+        ]
+        const segmentIds = [
+          ...new Set(
+            tasks
+              .map((task) => task.segmentId)
+              .filter((segmentId): segmentId is string => Boolean(segmentId)),
+          ),
+        ]
+
+        const [resources, segments] = await Promise.all([
+          resourceIds.length === 0
+            ? Promise.resolve([])
+            : prisma.resource.findMany({
+                where: {
+                  planId: input.planId,
+                  id: { in: resourceIds },
+                },
+                orderBy: [{ name: 'asc' }, { createdAt: 'asc' }],
+              }),
+          segmentIds.length === 0
+            ? Promise.resolve([])
+            : prisma.segment.findMany({
+                where: {
+                  planId: input.planId,
+                  id: { in: segmentIds },
+                },
+                orderBy: { createdAt: 'asc' },
+              }),
+        ])
+
+        return PlannerBoardSnapshotSchema.parse({
+          plan,
+          window: {
+            windowStartUtc: input.windowStartUtc,
+            windowEndUtc: input.windowEndUtc,
+          },
+          tasks,
+          dependencies: TaskDependencySchema.array().parse(dependencies),
+          conflicts,
+          resources: ResourceSchema.array().parse(resources),
+          segments: SegmentSchema.array().parse(segments),
+        })
+      }),
+  }),
   conflicts: createTRPCRouter({
     listByWindow: publicProcedure
       .input(ListByPlanWindowInputSchema)
       .output(PlannerConflictListSchema)
       .query(async ({ input }) => {
         await ensurePlanExists(input.planId)
-        assertWindow(input.windowStartUtc, input.windowEndUtc)
-
-        const [assignments, unavailabilityWindows] = await Promise.all([
-          prisma.taskAssignment.findMany({
-            where: {
-              resource: { planId: input.planId },
-              task: {
-                startDayUtc: { lt: input.windowEndUtc },
-                endDayUtc: { gt: input.windowStartUtc },
-              },
-            },
-            select: {
-              resourceId: true,
-              task: {
-                select: {
-                  id: true,
-                  startDayUtc: true,
-                  endDayUtc: true,
-                },
-              },
-            },
-          }),
-          prisma.resourceUnavailability.findMany({
-            where: {
-              resource: { planId: input.planId },
-              startDayUtc: { lt: input.windowEndUtc },
-              endDayUtc: { gt: input.windowStartUtc },
-            },
-            select: {
-              resourceId: true,
-              startDayUtc: true,
-              endDayUtc: true,
-              reason: true,
-            },
-          }),
-        ])
-
-        const assignedTasks = assignments.map((assignment) => ({
-          id: assignment.task.id,
-          resourceId: assignment.resourceId,
-          startDayUtc: assignment.task.startDayUtc,
-          endDayUtc: assignment.task.endDayUtc,
-        }))
-
-        const conflicts = dedupeConflicts([
-          ...buildTaskOverlapConflicts(assignedTasks),
-          ...buildUnavailabilityConflicts(assignedTasks, unavailabilityWindows),
-        ])
-
-        return PlannerConflictListSchema.parse(conflicts)
+        assertWindowOrThrowTrpc(input.windowStartUtc, input.windowEndUtc)
+        return listConflictsByWindow(
+          input.planId,
+          input.windowStartUtc,
+          input.windowEndUtc,
+        )
       }),
   }),
 })

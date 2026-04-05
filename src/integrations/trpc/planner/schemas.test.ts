@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  BoardSnapshotByWindowInputSchema,
   CreateResourceInputSchema,
   CreateTaskInputSchema,
   ListByPlanWindowInputSchema,
@@ -42,6 +43,18 @@ describe('planner schema contracts', () => {
 
     expect(parsed.windowStartUtc).toBeInstanceOf(Date)
     expect(parsed.windowEndUtc).toBeInstanceOf(Date)
+  })
+
+  test('BoardSnapshotByWindowInputSchema parses optional segmentIds', () => {
+    const parsed = BoardSnapshotByWindowInputSchema.parse({
+      planId: 'plan_1',
+      windowStartUtc: '2026-03-31T00:00:00.000Z',
+      windowEndUtc: '2026-04-06T00:00:00.000Z',
+      segmentIds: ['segment_1', 'segment_2'],
+    })
+
+    expect(parsed.segmentIds).toEqual(['segment_1', 'segment_2'])
+    expect(parsed.windowStartUtc).toBeInstanceOf(Date)
   })
 
   test('plannerConflictSchema validates required conflict fields', () => {

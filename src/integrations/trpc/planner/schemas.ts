@@ -1,7 +1,5 @@
 import { z } from 'zod'
 
-export const StandardEffortDayMinutes = 8 * 60
-
 export const PlannerTaskColorSchema = z.enum([
   'SLATE',
   'BLUE',
@@ -117,6 +115,21 @@ export const PlannerConflictSchema = z.object({
 
 export const PlannerConflictListSchema = z.array(PlannerConflictSchema)
 
+export const PlannerBoardSnapshotWindowSchema = z.object({
+  windowStartUtc: z.date(),
+  windowEndUtc: z.date(),
+})
+
+export const PlannerBoardSnapshotSchema = z.object({
+  plan: PlanSchema,
+  window: PlannerBoardSnapshotWindowSchema,
+  tasks: TaskReadSchema.array(),
+  dependencies: TaskDependencySchema.array(),
+  conflicts: PlannerConflictListSchema,
+  resources: ResourceSchema.array(),
+  segments: SegmentSchema.array(),
+})
+
 export const ListByPlanInputSchema = z.object({
   planId: z.string(),
 })
@@ -126,6 +139,11 @@ export const ListByPlanWindowInputSchema = z.object({
   windowStartUtc: IsoDateSchema,
   windowEndUtc: IsoDateSchema,
 })
+
+export const BoardSnapshotByWindowInputSchema =
+  ListByPlanWindowInputSchema.extend({
+    segmentIds: z.array(z.string()).optional(),
+  })
 
 export const CreatePlanInputSchema = z.object({
   name: z.string().trim().min(1),
