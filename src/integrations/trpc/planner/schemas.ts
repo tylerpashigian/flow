@@ -250,3 +250,33 @@ export const RemoveTaskDependencyInputSchema = z.object({
   predecessorTaskId: z.string(),
   successorTaskId: z.string(),
 })
+
+export type PlanDto = z.infer<typeof PlanSchema>
+export type SegmentDto = z.infer<typeof SegmentSchema>
+export type ResourceDto = z.infer<typeof ResourceSchema>
+export type TaskDto = z.infer<typeof TaskSchema>
+export type TaskReadDto = z.infer<typeof TaskReadSchema>
+export type TaskAssignmentDto = z.infer<typeof TaskAssignmentSchema>
+export type TaskDependencyDto = z.infer<typeof TaskDependencySchema>
+export type PlannerConflictDto = z.infer<typeof PlannerConflictSchema>
+export type PlannerBoardSnapshotDto = z.infer<typeof PlannerBoardSnapshotSchema>
+export type BoardSnapshotByWindowInputDto = z.infer<
+  typeof BoardSnapshotByWindowInputSchema
+>
+export type CreateTaskInputDto = z.infer<typeof CreateTaskInputSchema>
+export type UpdateTaskInputDto = z.infer<typeof UpdateTaskInputSchema>
+export type UpsertTaskAssignmentInputDto = z.infer<
+  typeof UpsertTaskAssignmentInputSchema
+>
+export type UpdateTaskAssignmentProgressInputDto = z.infer<
+  typeof UpdateTaskAssignmentProgressInputSchema
+>
+export type RemoveTaskAssignmentInputDto = z.infer<
+  typeof RemoveTaskAssignmentInputSchema
+>
+export type AddTaskDependencyInputDto = z.infer<
+  typeof AddTaskDependencyInputSchema
+>
+export type RemoveTaskDependencyInputDto = z.infer<
+  typeof RemoveTaskDependencyInputSchema
+>
