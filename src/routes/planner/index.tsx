@@ -9,11 +9,24 @@ import {
   formatPlannerDay,
   formatPlannerLabel,
   formatPlannerMonthLabel,
+  fromPlannerDayKey,
   getTodayPlannerDayKey,
   parsePlannerDay,
 } from '@/lib/date'
 import type { PlannerDayKey } from '@/types/date'
 import { Button } from '@/components/ui/button'
+import {
+  toCreateResourceInput,
+  toCreateSegmentInput,
+  toCreateTaskInput,
+  toOptionalTaskAssignmentInput,
+} from '#/data/planner'
+import {
+  CreateResourceDialog,
+  CreateSegmentDialog,
+  CreateTaskDialog,
+} from '@/features/planner/components/modals'
+import { usePlannerBoard, usePlannerBootstrap } from '@/features/planner/hooks'
 import { PlannerLayoutRoute } from './route'
 
 const DAY_WIDTH = 160
@@ -38,6 +51,9 @@ function PlannerTimeline() {
   )
   const normalizedDay = parsedSearchDay ?? todayDayKey
   const normalizedDateString = formatPlannerDay(normalizedDay)
+  const bootstrap = usePlannerBootstrap()
+  const activePlan = bootstrap.activePlan
+  const activePlanId = activePlan?.id ?? 'pending-plan'
 
   const parentRef = useRef<HTMLDivElement | null>(null)
   const isRecenteringRef = useRef(false)
@@ -152,6 +168,18 @@ function PlannerTimeline() {
     })
   }
 
+  const boardWindow = useMemo(
+    () => ({
+      planId: activePlanId,
+      windowStartUtc: fromPlannerDayKey(baseDayKey - CENTER_INDEX),
+      windowEndUtc: fromPlannerDayKey(baseDayKey + CENTER_INDEX + 1),
+    }),
+    [activePlanId, baseDayKey],
+  )
+  const plannerBoard = usePlannerBoard(boardWindow, {
+    enabled: Boolean(activePlan),
+  })
+
   return (
     <div
       className="flex h-full min-h-0 flex-col gap-3 p-3"
@@ -167,9 +195,71 @@ function PlannerTimeline() {
           <p className="text-xs text-muted-foreground">
             Signed in as {sidebarData.user.name}
           </p>
+          <p className="text-xs text-muted-foreground">
+            Active plan:{' '}
+            {bootstrap.status.isLoading
+              ? 'Loading...'
+              : (activePlan?.name ?? 'Unavailable')}
+          </p>
         </div>
-        <Button onClick={jumpToToday}>Jump to today</Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {activePlan ? (
+            <>
+              <CreateResourceDialog
+                onSubmit={async (value) => {
+                  await plannerBoard.actions.createResource(
+                    toCreateResourceInput(value, activePlan.id),
+                  )
+                }}
+              />
+              <CreateSegmentDialog
+                onSubmit={async (value) => {
+                  await plannerBoard.actions.createSegment(
+                    toCreateSegmentInput(value, activePlan.id),
+                  )
+                }}
+              />
+              <CreateTaskDialog
+                segments={bootstrap.segments}
+                resources={bootstrap.resources}
+                defaultStartDate={fromPlannerDayKey(baseDayKey)}
+                onSubmit={async (value) => {
+                  const task = await plannerBoard.actions.createTask(
+                    toCreateTaskInput(value, activePlan.id),
+                  )
+                  const assignmentInput = toOptionalTaskAssignmentInput(
+                    value,
+                    task.id,
+                  )
+
+                  if (!assignmentInput) {
+                    return 'Task created'
+                  }
+
+                  try {
+                    await plannerBoard.actions.addAssignment(assignmentInput)
+                  } catch (error) {
+                    throw new Error(
+                      error instanceof Error
+                        ? error.message
+                        : 'Task created, but resource assignment failed',
+                    )
+                  }
+
+                  return 'Task created and assigned'
+                }}
+              />
+            </>
+          ) : null}
+          <Button onClick={jumpToToday}>Jump to today</Button>
+        </div>
       </div>
+
+      {bootstrap.status.error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {bootstrap.status.error.message}
+        </div>
+      ) : null}
 
       <div className="rounded-lg border bg-card flex-1 min-h-0">
         <div

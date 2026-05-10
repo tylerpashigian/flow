@@ -5,6 +5,7 @@ import {
   CreateTaskInputSchema,
   ListByPlanWindowInputSchema,
   PlannerConflictSchema,
+  UpdateSegmentInputSchema,
   UpdateTaskAssignmentProgressInputSchema,
 } from './schemas'
 
@@ -90,6 +91,15 @@ describe('planner schema contracts', () => {
         taskId: 'task_1',
         resourceId: 'resource_1',
         progressPercent: 101,
+      }),
+    ).toThrow()
+  })
+
+  test('UpdateSegmentInputSchema requires a trimmed name', () => {
+    expect(() =>
+      UpdateSegmentInputSchema.parse({
+        id: 'segment_1',
+        name: '   ',
       }),
     ).toThrow()
   })

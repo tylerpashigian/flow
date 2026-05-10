@@ -10,6 +10,7 @@ const prismaMock = {
     create: vi.fn(),
     findMany: vi.fn(),
     findUnique: vi.fn(),
+    update: vi.fn(),
   },
   resource: {
     create: vi.fn(),
@@ -183,6 +184,35 @@ describe('planner router behavior', () => {
     })
 
     expect(assignment.progressPercent).toBe(70)
+  })
+
+  test('segments.update persists the new name', async () => {
+    prismaMock.segment.findUnique.mockResolvedValueOnce({
+      id: 'segment_1',
+      planId: 'plan_1',
+      name: 'Sprint 1',
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+    })
+    prismaMock.segment.update.mockResolvedValueOnce({
+      id: 'segment_1',
+      planId: 'plan_1',
+      name: 'Sprint 2',
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T00:00:00.000Z'),
+    })
+
+    const caller = plannerRouter.createCaller({})
+    const segment = await caller.segments.update({
+      id: 'segment_1',
+      name: 'Sprint 2',
+    })
+
+    expect(segment.name).toBe('Sprint 2')
+    expect(prismaMock.segment.update).toHaveBeenCalledWith({
+      where: { id: 'segment_1' },
+      data: { name: 'Sprint 2' },
+    })
   })
 
   test('tasks.listByPlanWindow returns derived progress and projection', async () => {

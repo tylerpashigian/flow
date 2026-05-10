@@ -154,6 +154,11 @@ export const CreateSegmentInputSchema = z.object({
   name: z.string().trim().min(1),
 })
 
+export const UpdateSegmentInputSchema = z.object({
+  id: z.string(),
+  name: z.string().trim().min(1),
+})
+
 type ResourceWorkdayWindowInput = {
   workdayStartMinuteLocal?: number
   workdayEndMinuteLocal?: number
@@ -260,6 +265,12 @@ export type TaskAssignmentDto = z.infer<typeof TaskAssignmentSchema>
 export type TaskDependencyDto = z.infer<typeof TaskDependencySchema>
 export type PlannerConflictDto = z.infer<typeof PlannerConflictSchema>
 export type PlannerBoardSnapshotDto = z.infer<typeof PlannerBoardSnapshotSchema>
+export type ListByPlanInputDto = z.infer<typeof ListByPlanInputSchema>
+export type CreatePlanInputDto = z.infer<typeof CreatePlanInputSchema>
+export type CreateSegmentInputDto = z.infer<typeof CreateSegmentInputSchema>
+export type UpdateSegmentInputDto = z.infer<typeof UpdateSegmentInputSchema>
+export type CreateResourceInputDto = z.infer<typeof CreateResourceInputSchema>
+export type UpdateResourceInputDto = z.infer<typeof UpdateResourceInputSchema>
 export type BoardSnapshotByWindowInputDto = z.infer<
   typeof BoardSnapshotByWindowInputSchema
 >

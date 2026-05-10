@@ -4,12 +4,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import type { BoardSnapshotModel, TaskModel } from '#/data/planner'
 import { usePlannerBoard } from './hooks'
 import { plannerQueryKeys } from './query-keys'
-import type { BoardSnapshotModel, TaskModel } from './models'
 
 const {
   getBoardSnapshotByWindowMock,
+  createResourceMock,
+  updateResourceMock,
+  createSegmentMock,
+  updateSegmentMock,
+  createTaskMock,
   updateTaskMock,
   addAssignmentMock,
   updateAssignmentProgressMock,
@@ -18,6 +23,11 @@ const {
   removeDependencyMock,
 } = vi.hoisted(() => ({
   getBoardSnapshotByWindowMock: vi.fn(),
+  createResourceMock: vi.fn(),
+  updateResourceMock: vi.fn(),
+  createSegmentMock: vi.fn(),
+  updateSegmentMock: vi.fn(),
+  createTaskMock: vi.fn(),
   updateTaskMock: vi.fn(),
   addAssignmentMock: vi.fn(),
   updateAssignmentProgressMock: vi.fn(),
@@ -29,7 +39,11 @@ const {
 vi.mock('./service', () => ({
   plannerService: {
     getBoardSnapshotByWindow: getBoardSnapshotByWindowMock,
-    createTask: vi.fn(),
+    createResource: createResourceMock,
+    updateResource: updateResourceMock,
+    createSegment: createSegmentMock,
+    updateSegment: updateSegmentMock,
+    createTask: createTaskMock,
     updateTask: updateTaskMock,
     addAssignment: addAssignmentMock,
     updateAssignmentProgress: updateAssignmentProgressMock,
@@ -186,6 +200,269 @@ describe('planner hooks', () => {
     expect(result.current.relations.conflictsByTaskId.task_2).toHaveLength(1)
   })
 
+  test('usePlannerBoard createResource invalidates the current plan resources query', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const wrapper = createWrapper(queryClient)
+
+    createResourceMock.mockResolvedValueOnce({
+      id: 'resource_2',
+      planId: 'plan_1',
+      userId: null,
+      name: 'Resource 2',
+      picture: null,
+      capacityPercent: 100,
+      timezone: 'UTC',
+      workdayStartMinuteLocal: 0,
+      workdayEndMinuteLocal: 1440,
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+    })
+
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
+
+    await act(async () => {
+      await result.current.actions.createResource({
+        planId: 'plan_1',
+        name: 'Resource 2',
+      })
+    })
+
+    expect(createResourceMock).toHaveBeenCalledWith({
+      planId: 'plan_1',
+      name: 'Resource 2',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: plannerQueryKeys.resources('plan_1'),
+      exact: true,
+    })
+  })
+
+  test('usePlannerBoard createSegment invalidates the current plan segments query', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const wrapper = createWrapper(queryClient)
+
+    createSegmentMock.mockResolvedValueOnce({
+      id: 'segment_2',
+      planId: 'plan_1',
+      name: 'Sprint 2',
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+    })
+
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
+
+    await act(async () => {
+      await result.current.actions.createSegment({
+        planId: 'plan_1',
+        name: 'Sprint 2',
+      })
+    })
+
+    expect(createSegmentMock).toHaveBeenCalledWith({
+      planId: 'plan_1',
+      name: 'Sprint 2',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: plannerQueryKeys.segments('plan_1'),
+      exact: true,
+    })
+  })
+
+  test('usePlannerBoard updateResource invalidates related resource and board queries', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const wrapper = createWrapper(queryClient)
+
+    updateResourceMock.mockResolvedValueOnce({
+      id: 'resource_1',
+      planId: 'plan_1',
+      userId: null,
+      name: 'Resource 1 Updated',
+      picture: null,
+      capacityPercent: 100,
+      timezone: 'UTC',
+      workdayStartMinuteLocal: 0,
+      workdayEndMinuteLocal: 1440,
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T00:00:00.000Z'),
+    })
+
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
+
+    await act(async () => {
+      await result.current.actions.updateResource({
+        id: 'resource_1',
+        name: 'Resource 1 Updated',
+      })
+    })
+
+    expect(updateResourceMock).toHaveBeenCalledWith({
+      id: 'resource_1',
+      name: 'Resource 1 Updated',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: plannerQueryKeys.resources('plan_1'),
+      exact: true,
+    })
+  })
+
+  test('usePlannerBoard updateSegment invalidates related segment and board queries', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const wrapper = createWrapper(queryClient)
+
+    updateSegmentMock.mockResolvedValueOnce({
+      id: 'segment_1',
+      planId: 'plan_1',
+      name: 'Sprint 1 Updated',
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T00:00:00.000Z'),
+    })
+
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
+
+    await act(async () => {
+      await result.current.actions.updateSegment({
+        id: 'segment_1',
+        name: 'Sprint 1 Updated',
+      })
+    })
+
+    expect(updateSegmentMock).toHaveBeenCalledWith({
+      id: 'segment_1',
+      name: 'Sprint 1 Updated',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: plannerQueryKeys.segments('plan_1'),
+      exact: true,
+    })
+  })
+
+  test('usePlannerBoard createTask invalidates matching board snapshots when created task belongs in-view', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const wrapper = createWrapper(queryClient)
+
+    queryClient.setQueryData(
+      plannerQueryKeys.board(boardInput),
+      createSnapshot(),
+    )
+    createTaskMock.mockResolvedValueOnce({
+      id: 'task_3',
+      planId: 'plan_1',
+      segmentId: 'segment_1',
+      name: 'Task 3',
+      color: 'BLUE',
+      startDayUtc: new Date('2026-04-03T00:00:00.000Z'),
+      durationDays: 2,
+      estimatedEffortDays: null,
+      endDayUtc: new Date('2026-04-05T00:00:00.000Z'),
+      createdAt: new Date('2026-04-03T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-03T00:00:00.000Z'),
+    })
+
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
+
+    await act(async () => {
+      await result.current.actions.createTask({
+        planId: 'plan_1',
+        segmentId: 'segment_1',
+        name: 'Task 3',
+        color: 'BLUE',
+        startDayUtc: new Date('2026-04-03T00:00:00.000Z'),
+        durationDays: 2,
+      })
+    })
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: plannerQueryKeys.board(boardInput),
+      exact: true,
+    })
+  })
+
+  test('usePlannerBoard createTask skips invalidation when created task is outside the cached board window', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const wrapper = createWrapper(queryClient)
+
+    queryClient.setQueryData(
+      plannerQueryKeys.board(boardInput),
+      createSnapshot(),
+    )
+    createTaskMock.mockResolvedValueOnce({
+      id: 'task_3',
+      planId: 'plan_1',
+      segmentId: 'segment_1',
+      name: 'Task 3',
+      color: 'BLUE',
+      startDayUtc: new Date('2026-04-12T00:00:00.000Z'),
+      durationDays: 2,
+      estimatedEffortDays: null,
+      endDayUtc: new Date('2026-04-14T00:00:00.000Z'),
+      createdAt: new Date('2026-04-03T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-03T00:00:00.000Z'),
+    })
+
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
+
+    await act(async () => {
+      await result.current.actions.createTask({
+        planId: 'plan_1',
+        segmentId: 'segment_1',
+        name: 'Task 3',
+        color: 'BLUE',
+        startDayUtc: new Date('2026-04-12T00:00:00.000Z'),
+        durationDays: 2,
+      })
+    })
+
+    expect(invalidateSpy).not.toHaveBeenCalled()
+  })
+
   test('usePlannerBoard attaches resource unavailability conflicts only to taskAId', async () => {
     const snapshot = createSnapshot()
     snapshot.conflicts = [
@@ -228,7 +505,10 @@ describe('planner hooks', () => {
     })
     const wrapper = createWrapper(queryClient)
 
-    queryClient.setQueryData(plannerQueryKeys.board(boardInput), createSnapshot())
+    queryClient.setQueryData(
+      plannerQueryKeys.board(boardInput),
+      createSnapshot(),
+    )
     const updatedTask: TaskModel = {
       id: 'task_1',
       planId: 'plan_1',
@@ -251,7 +531,9 @@ describe('planner hooks', () => {
 
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await result.current.actions.updateTask({
@@ -301,7 +583,9 @@ describe('planner hooks', () => {
     })
 
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await result.current.actions.updateTask({
@@ -349,7 +633,9 @@ describe('planner hooks', () => {
     })
 
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await result.current.actions.updateTask({
@@ -422,9 +708,9 @@ describe('planner hooks', () => {
       ReturnType<typeof createSnapshot>
     >(plannerQueryKeys.board(otherPlanInput))
 
-    expect(updatedSnapshot?.tasks.find((task) => task.id === 'task_1')?.name).toBe(
-      'Task 1',
-    )
+    expect(
+      updatedSnapshot?.tasks.find((task) => task.id === 'task_1')?.name,
+    ).toBe('Task 1')
     expect(invalidateSpy).not.toHaveBeenCalled()
   })
 
@@ -456,7 +742,9 @@ describe('planner hooks', () => {
     })
 
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await result.current.actions.updateTask({
@@ -524,7 +812,9 @@ describe('planner hooks', () => {
     })
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await result.current.actions.addAssignment({
@@ -597,7 +887,9 @@ describe('planner hooks', () => {
       createdAt: new Date('2026-04-02T00:00:00.000Z'),
     })
 
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await result.current.actions.addDependency({
@@ -654,7 +946,9 @@ describe('planner hooks', () => {
     })
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await result.current.actions.updateAssignmentProgress({
@@ -716,7 +1010,9 @@ describe('planner hooks', () => {
 
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await result.current.actions.addAssignment({
@@ -742,7 +1038,10 @@ describe('planner hooks', () => {
     })
     const wrapper = createWrapper(queryClient)
 
-    queryClient.setQueryData(plannerQueryKeys.board(boardInput), createSnapshot())
+    queryClient.setQueryData(
+      plannerQueryKeys.board(boardInput),
+      createSnapshot(),
+    )
     updateTaskMock.mockRejectedValueOnce(new Error('Update failed'))
     addDependencyMock.mockResolvedValueOnce({
       id: 'dep_2',
@@ -752,7 +1051,9 @@ describe('planner hooks', () => {
       createdAt: new Date('2026-04-02T00:00:00.000Z'),
     })
 
-    const { result } = renderHook(() => usePlannerBoard(boardInput), { wrapper })
+    const { result } = renderHook(() => usePlannerBoard(boardInput), {
+      wrapper,
+    })
 
     await act(async () => {
       await expect(

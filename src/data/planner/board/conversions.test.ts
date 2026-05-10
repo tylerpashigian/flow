@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import type { PlannerBoardSnapshotDto, TaskAssignmentDto } from '#/integrations/trpc/planner/schemas'
-import { toBoardSnapshotModel, toTaskAssignmentModel, toTaskModelFromTask } from './conversions'
+import type {
+  PlannerBoardSnapshotDto,
+  TaskAssignmentDto,
+} from '#/integrations/trpc/planner/schemas'
+import { toBoardSnapshotModel, toTaskAssignmentModel } from './conversions'
 
-describe('planner conversions', () => {
+describe('planner board conversions', () => {
   test('toBoardSnapshotModel converts snapshot dto to canonical model', () => {
     const dto: PlannerBoardSnapshotDto = {
       plan: {
@@ -114,25 +117,5 @@ describe('planner conversions', () => {
 
     expect(model.progressPercent).toBe(0)
     expect(model.taskId).toBe('task_1')
-  })
-
-  test('toTaskModelFromTask maps task write dto without derived fields', () => {
-    const model = toTaskModelFromTask({
-      id: 'task_1',
-      planId: 'plan_1',
-      segmentId: null,
-      name: 'Task 1',
-      color: 'BLUE',
-      startDayUtc: new Date('2026-04-01T00:00:00.000Z'),
-      durationDays: 2,
-      estimatedEffortDays: null,
-      endDayUtc: new Date('2026-04-03T00:00:00.000Z'),
-      createdAt: new Date('2026-04-01T00:00:00.000Z'),
-      updatedAt: new Date('2026-04-01T00:00:00.000Z'),
-    })
-
-    expect(model.id).toBe('task_1')
-    expect(model.taskProgressPercent).toBeUndefined()
-    expect(model.assignees).toBeUndefined()
   })
 })

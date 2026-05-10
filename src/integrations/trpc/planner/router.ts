@@ -21,6 +21,7 @@ import {
   TaskAssignmentSchema,
   TaskDependencySchema,
   TaskSchema,
+  UpdateSegmentInputSchema,
   UpdateResourceInputSchema,
   UpdateTaskAssignmentProgressInputSchema,
   UpdateTaskInputSchema,
@@ -302,6 +303,30 @@ export const plannerRouter = createTRPCRouter({
         const segment = await prisma.segment.create({
           data: {
             planId: input.planId,
+            name: input.name,
+          },
+        })
+
+        return SegmentSchema.parse(segment)
+      }),
+    update: publicProcedure
+      .input(UpdateSegmentInputSchema)
+      .output(SegmentSchema)
+      .mutation(async ({ input }) => {
+        const existing = await prisma.segment.findUnique({
+          where: { id: input.id },
+        })
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Segment not found',
+          })
+        }
+
+        const segment = await prisma.segment.update({
+          where: { id: existing.id },
+          data: {
             name: input.name,
           },
         })

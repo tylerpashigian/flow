@@ -53,7 +53,7 @@ async function main() {
     prisma.resource.create({
       data: {
         planId: plan.id,
-        name: 'Alex Rivera',
+        name: 'John Appleseed',
         picture: null,
       },
     }),

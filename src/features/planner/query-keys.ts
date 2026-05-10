@@ -38,6 +38,12 @@ export function normalizeBoardWindowInput(
 
 export const plannerQueryKeys = {
   all: () => ['planner'] as const,
+  plans: () => [...plannerQueryKeys.all(), 'plans'] as const,
+  activePlan: () => [...plannerQueryKeys.all(), 'activePlan'] as const,
+  resources: (planId: string) =>
+    [...plannerQueryKeys.all(), 'resources', planId] as const,
+  segments: (planId: string) =>
+    [...plannerQueryKeys.all(), 'segments', planId] as const,
   boardRoot: () => ['planner', 'board', 'snapshotByWindow'] as const,
   board: (input: BoardSnapshotByWindowInputDto) =>
     [...plannerQueryKeys.boardRoot(), normalizeBoardWindowInput(input)] as const,

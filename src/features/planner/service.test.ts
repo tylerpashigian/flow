@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 const snapshotByWindowQueryMock = vi.fn()
+const plansListQueryMock = vi.fn()
+const createPlanMutateMock = vi.fn()
+const resourcesListByPlanQueryMock = vi.fn()
+const createResourceMutateMock = vi.fn()
+const updateResourceMutateMock = vi.fn()
+const segmentsListByPlanQueryMock = vi.fn()
+const createSegmentMutateMock = vi.fn()
+const updateSegmentMutateMock = vi.fn()
 const createTaskMutateMock = vi.fn()
 const updateTaskMutateMock = vi.fn()
 const addAssignmentMutateMock = vi.fn()
@@ -12,6 +20,20 @@ const removeDependencyMutateMock = vi.fn()
 vi.mock('#/integrations/trpc/client', () => ({
   trpcClient: {
     planner: {
+      plans: {
+        list: { query: plansListQueryMock },
+        create: { mutate: createPlanMutateMock },
+      },
+      resources: {
+        listByPlan: { query: resourcesListByPlanQueryMock },
+        create: { mutate: createResourceMutateMock },
+        update: { mutate: updateResourceMutateMock },
+      },
+      segments: {
+        listByPlan: { query: segmentsListByPlanQueryMock },
+        create: { mutate: createSegmentMutateMock },
+        update: { mutate: updateSegmentMutateMock },
+      },
       board: { snapshotByWindow: { query: snapshotByWindowQueryMock } },
       tasks: {
         create: { mutate: createTaskMutateMock },
@@ -35,6 +57,195 @@ const { plannerService } = await import('./service')
 describe('planner service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  test('listPlans parses and returns plan models', async () => {
+    plansListQueryMock.mockResolvedValueOnce([
+      {
+        id: 'plan_1',
+        name: 'Plan 1',
+        createdAt: new Date('2026-04-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
+    ])
+
+    const result = await plannerService.listPlans()
+
+    expect(result[0]?.id).toBe('plan_1')
+    expect(plansListQueryMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('getOrCreateDefaultPlan returns existing plan when available', async () => {
+    plansListQueryMock.mockResolvedValueOnce([
+      {
+        id: 'plan_1',
+        name: 'Plan 1',
+        createdAt: new Date('2026-04-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
+    ])
+
+    const result = await plannerService.getOrCreateDefaultPlan()
+
+    expect(result.id).toBe('plan_1')
+    expect(createPlanMutateMock).not.toHaveBeenCalled()
+  })
+
+  test('getOrCreateDefaultPlan creates a default plan when none exist', async () => {
+    plansListQueryMock.mockResolvedValueOnce([])
+    createPlanMutateMock.mockResolvedValueOnce({
+      id: 'plan_1',
+      name: 'Planning Management Tool',
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+    })
+
+    const result = await plannerService.getOrCreateDefaultPlan()
+
+    expect(result.name).toBe('Planning Management Tool')
+    expect(createPlanMutateMock).toHaveBeenCalledWith({
+      name: 'Planning Management Tool',
+    })
+  })
+
+  test('listResourcesByPlan parses and returns canonical models', async () => {
+    resourcesListByPlanQueryMock.mockResolvedValueOnce([
+      {
+        id: 'resource_1',
+        planId: 'plan_1',
+        userId: null,
+        name: 'Resource 1',
+        picture: null,
+        capacityPercent: 100,
+        timezone: 'UTC',
+        workdayStartMinuteLocal: 0,
+        workdayEndMinuteLocal: 1440,
+        createdAt: new Date('2026-04-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
+    ])
+
+    const result = await plannerService.listResourcesByPlan({ planId: 'plan_1' })
+
+    expect(result[0]?.name).toBe('Resource 1')
+    expect(resourcesListByPlanQueryMock).toHaveBeenCalledWith({
+      planId: 'plan_1',
+    })
+  })
+
+  test('createResource parses and returns canonical model', async () => {
+    createResourceMutateMock.mockResolvedValueOnce({
+      id: 'resource_1',
+      planId: 'plan_1',
+      userId: null,
+      name: 'Resource 1',
+      picture: null,
+      capacityPercent: 100,
+      timezone: 'UTC',
+      workdayStartMinuteLocal: 0,
+      workdayEndMinuteLocal: 1440,
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+    })
+
+    const result = await plannerService.createResource({
+      planId: 'plan_1',
+      name: 'Resource 1',
+    })
+
+    expect(result.id).toBe('resource_1')
+    expect(createResourceMutateMock).toHaveBeenCalledWith({
+      planId: 'plan_1',
+      name: 'Resource 1',
+    })
+  })
+
+  test('listSegmentsByPlan parses and returns canonical models', async () => {
+    segmentsListByPlanQueryMock.mockResolvedValueOnce([
+      {
+        id: 'segment_1',
+        planId: 'plan_1',
+        name: 'Sprint 15',
+        createdAt: new Date('2026-04-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
+    ])
+
+    const result = await plannerService.listSegmentsByPlan({ planId: 'plan_1' })
+
+    expect(result[0]?.name).toBe('Sprint 15')
+    expect(segmentsListByPlanQueryMock).toHaveBeenCalledWith({
+      planId: 'plan_1',
+    })
+  })
+
+  test('createSegment parses and returns canonical model', async () => {
+    createSegmentMutateMock.mockResolvedValueOnce({
+      id: 'segment_1',
+      planId: 'plan_1',
+      name: 'Sprint 15',
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+    })
+
+    const result = await plannerService.createSegment({
+      planId: 'plan_1',
+      name: 'Sprint 15',
+    })
+
+    expect(result.id).toBe('segment_1')
+    expect(createSegmentMutateMock).toHaveBeenCalledWith({
+      planId: 'plan_1',
+      name: 'Sprint 15',
+    })
+  })
+
+  test('updateSegment parses and returns canonical model', async () => {
+    updateSegmentMutateMock.mockResolvedValueOnce({
+      id: 'segment_1',
+      planId: 'plan_1',
+      name: 'Sprint 16',
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T00:00:00.000Z'),
+    })
+
+    const result = await plannerService.updateSegment({
+      id: 'segment_1',
+      name: 'Sprint 16',
+    })
+
+    expect(result.name).toBe('Sprint 16')
+    expect(updateSegmentMutateMock).toHaveBeenCalledWith({
+      id: 'segment_1',
+      name: 'Sprint 16',
+    })
+  })
+
+  test('updateResource parses and returns canonical model', async () => {
+    updateResourceMutateMock.mockResolvedValueOnce({
+      id: 'resource_1',
+      planId: 'plan_1',
+      userId: null,
+      name: 'Resource 2',
+      picture: null,
+      capacityPercent: 100,
+      timezone: 'UTC',
+      workdayStartMinuteLocal: 0,
+      workdayEndMinuteLocal: 1440,
+      createdAt: new Date('2026-04-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T00:00:00.000Z'),
+    })
+
+    const result = await plannerService.updateResource({
+      id: 'resource_1',
+      name: 'Resource 2',
+    })
+
+    expect(result.name).toBe('Resource 2')
+    expect(updateResourceMutateMock).toHaveBeenCalledWith({
+      id: 'resource_1',
+      name: 'Resource 2',
+    })
   })
 
   test('getBoardSnapshotByWindow passes segmentIds and returns canonical model', async () => {
