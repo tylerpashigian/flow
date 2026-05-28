@@ -124,7 +124,7 @@ export function SidebarLayout({ content, sidebarData }: Props) {
               className={twMerge(
                 'sidebar-wrapper border-border absolute left-0 h-full w-full rounded-lg transition-all duration-200 ease-in-out',
                 isOn &&
-                  'bg-background rounded-lg-primary z-10 h-11/12 w-3xs translate-y-12 border p-2 pl-6 group-has-[.sidebar-icon-trigger:hover]:ml-[240px] group-has-[.sidebar-wrapper:hover]:ml-[240px]',
+                  'bg-background rounded-lg-primary z-40 h-11/12 w-3xs translate-y-12 border p-2 pl-6 group-has-[.sidebar-icon-trigger:hover]:ml-[240px] group-has-[.sidebar-wrapper:hover]:ml-[240px]',
                 !isOn && 'ml-0 h-full border-transparent bg-transparent',
               )}
             >

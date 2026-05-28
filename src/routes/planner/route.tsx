@@ -1,16 +1,16 @@
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { z } from 'zod'
-import {
-  formatPlannerDay,
-  getTodayPlannerDayKey,
-  parsePlannerDay,
-} from '@/lib/date'
 import { SidebarLayout } from '@/components/sidebar-layout'
 import type { SidebarData } from '@/components/sidebar-layout'
+import {
+  hasExplicitPlannerBoardWindow,
+  hasPlannerBoardWindowParams,
+} from '@/features/planner/board/board-window'
 
 const searchSchema = z.object({
-  date: z.string().optional(),
+  windowStart: z.string().optional(),
+  windowEnd: z.string().optional(),
 })
 
 async function loadPlannerSidebarData(): Promise<SidebarData> {
@@ -50,27 +50,18 @@ function PlannerLayout() {
   const search = Route.useSearch()
   const { sidebarData } = Route.useLoaderData()
 
-  const todayDayKey = getTodayPlannerDayKey()
-  const parsedSearchDay = useMemo(
-    () => parsePlannerDay(search.date),
-    [search.date],
-  )
-  const normalizedDay = parsedSearchDay ?? todayDayKey
-  const normalizedDateString = formatPlannerDay(normalizedDay)
-
   useEffect(() => {
-    if (search.date === normalizedDateString) {
-      return
+    if (
+      hasPlannerBoardWindowParams(search) &&
+      !hasExplicitPlannerBoardWindow(search)
+    ) {
+      navigate({
+        to: '/planner',
+        replace: true,
+        search: () => ({}),
+      })
     }
-
-    navigate({
-      to: '/planner',
-      replace: true,
-      search: () => ({
-        date: normalizedDateString,
-      }),
-    })
-  }, [navigate, normalizedDateString, search.date])
+  }, [navigate, search])
 
   return <SidebarLayout sidebarData={sidebarData} content={<Outlet />} />
 }
