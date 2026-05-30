@@ -9,6 +9,7 @@ import {
   fromPlannerDayKey,
   toPlannerDayKey,
 } from '@/lib/date'
+import { SidebarLayout } from '@/components/sidebar-layout'
 import { Button } from '@/components/ui/button'
 import {
   toCreateResourceInput,
@@ -36,7 +37,6 @@ import {
   shouldAutoCenterPlannerBoardToday,
   toPlannerBoardWindowSearch,
 } from '@/features/planner/board/board-window'
-import { PlannerLayoutRoute } from './route'
 
 const DAY_WIDTH = 160
 const plannerRouteApi = getRouteApi('/planner')
@@ -48,7 +48,6 @@ export const Route = createFileRoute('/planner/')({
 function PlannerTimeline() {
   const navigate = useNavigate({ from: Route.fullPath })
   const search = plannerRouteApi.useSearch()
-  const { sidebarData } = PlannerLayoutRoute.useLoaderData()
 
   const todayDayKey = toPlannerDayKey(new Date())
   const hasExplicitWindow = hasExplicitPlannerBoardWindow(search)
@@ -168,7 +167,75 @@ function PlannerTimeline() {
     todayDayKey,
   ])
 
-  return (
+  const sidebarContent = (
+    <div className="flex flex-col gap-2">
+      <p className="text-muted-foreground px-2 text-xs font-medium">
+        Planner actions
+      </p>
+      {activePlan ? (
+        <>
+          <CreateResourceDialog
+            onSubmit={async (value) => {
+              await plannerBoard.actions.createResource(
+                toCreateResourceInput(value, activePlan.id),
+              )
+            }}
+          />
+          <CreateSegmentDialog
+            onSubmit={async (value) => {
+              await plannerBoard.actions.createSegment(
+                toCreateSegmentInput(value, activePlan.id),
+              )
+            }}
+          />
+          <CreateTaskDialog
+            segments={bootstrap.segments}
+            resources={bootstrap.resources}
+            defaultStartDate={new Date()}
+            onSubmit={async (value) => {
+              const task = await plannerBoard.actions.createTask(
+                toCreateTaskInput(value, activePlan.id),
+              )
+              const assignmentInput = toOptionalTaskAssignmentInput(
+                value,
+                task.id,
+              )
+
+              if (!assignmentInput) {
+                return 'Task created'
+              }
+
+              try {
+                await plannerBoard.actions.addAssignment(assignmentInput)
+              } catch (error) {
+                throw new Error(
+                  error instanceof Error
+                    ? error.message
+                    : 'Task created, but resource assignment failed',
+                )
+              }
+
+              return 'Task created and assigned'
+            }}
+          />
+        </>
+      ) : (
+        <p className="text-muted-foreground px-2 text-xs">
+          Planner actions will be available once the active plan loads.
+        </p>
+      )}
+      <div className="border-border mt-1 flex flex-col gap-2 border-t pt-2">
+        <Button variant="outline" onClick={() => expandWindow('before')}>
+          Load 2 more weeks before
+        </Button>
+        <Button variant="outline" onClick={() => expandWindow('after')}>
+          Load 2 more weeks after
+        </Button>
+      </div>
+    </div>
+  )
+
+  const content = (
     <div
       className="flex h-full min-h-0 flex-col gap-3 p-3"
       id="planner-content"
@@ -181,70 +248,11 @@ function PlannerTimeline() {
             {formatPlannerDay(activeWindow.windowEndDayKey)}.
           </p>
           <p className="text-xs text-muted-foreground">
-            Signed in as {sidebarData.user.name}
-          </p>
-          <p className="text-xs text-muted-foreground">
             Active plan:{' '}
             {bootstrap.status.isLoading
               ? 'Loading...'
               : (activePlan?.name ?? 'Unavailable')}
           </p>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {activePlan ? (
-            <>
-              <CreateResourceDialog
-                onSubmit={async (value) => {
-                  await plannerBoard.actions.createResource(
-                    toCreateResourceInput(value, activePlan.id),
-                  )
-                }}
-              />
-              <CreateSegmentDialog
-                onSubmit={async (value) => {
-                  await plannerBoard.actions.createSegment(
-                    toCreateSegmentInput(value, activePlan.id),
-                  )
-                }}
-              />
-              <CreateTaskDialog
-                segments={bootstrap.segments}
-                resources={bootstrap.resources}
-                defaultStartDate={new Date()}
-                onSubmit={async (value) => {
-                  const task = await plannerBoard.actions.createTask(
-                    toCreateTaskInput(value, activePlan.id),
-                  )
-                  const assignmentInput = toOptionalTaskAssignmentInput(
-                    value,
-                    task.id,
-                  )
-
-                  if (!assignmentInput) {
-                    return 'Task created'
-                  }
-
-                  try {
-                    await plannerBoard.actions.addAssignment(assignmentInput)
-                  } catch (error) {
-                    throw new Error(
-                      error instanceof Error
-                        ? error.message
-                        : 'Task created, but resource assignment failed',
-                    )
-                  }
-
-                  return 'Task created and assigned'
-                }}
-              />
-            </>
-          ) : null}
-          <Button variant="outline" onClick={() => expandWindow('before')}>
-            Load 2 more weeks before
-          </Button>
-          <Button variant="outline" onClick={() => expandWindow('after')}>
-            Load 2 more weeks after
-          </Button>
         </div>
       </div>
 
@@ -270,4 +278,6 @@ function PlannerTimeline() {
       </div>
     </div>
   )
+
+  return <SidebarLayout sidebarContent={sidebarContent} content={content} />
 }

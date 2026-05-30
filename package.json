@@ -19,6 +19,9 @@
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "db:seed": "dotenv -e .env.local -- prisma db seed",
+    "db:dev:generate": "dotenv -e .env.dev -- prisma generate",
+    "db:dev:status": "dotenv -e .env.dev -- prisma migrate status",
+    "db:dev:deploy": "dotenv -e .env.dev -- prisma migrate deploy",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

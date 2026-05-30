@@ -35,7 +35,6 @@ import {
   dedupeConflicts,
   isPlannerDomainValidationError,
   mapTaskToTaskRead,
-  toUtcStartOfDay,
   wouldCreateDependencyCycle,
 } from './domain'
 import { STANDARD_EFFORT_DAY_MINUTES } from './constants'
@@ -444,7 +443,7 @@ export const plannerRouter = createTRPCRouter({
           }
         }
 
-        const startDayUtc = toUtcStartOfDay(input.startDayUtc)
+        const startDayUtc = new Date(input.startDayUtc)
         const endDayUtc = computeEndDayUtcOrThrowTrpc(
           startDayUtc,
           input.durationDays,
@@ -493,7 +492,7 @@ export const plannerRouter = createTRPCRouter({
         }
 
         const nextStart = input.startDayUtc
-          ? toUtcStartOfDay(input.startDayUtc)
+          ? new Date(input.startDayUtc)
           : existing.startDayUtc
         const nextDuration = input.durationDays ?? existing.durationDays
         const nextEnd = computeEndDayUtcOrThrowTrpc(nextStart, nextDuration)

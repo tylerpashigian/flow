@@ -13,7 +13,7 @@ export default function Header() {
               className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm no-underline sm:px-4 sm:py-2" // shadow-[0_8px_24px_rgba(30,90,72,0.08)]
             >
               <span className="h-2 w-2 rounded-full bg-success" />
-              TanStack Start
+              Flow
             </Link>
           </h2>
 
