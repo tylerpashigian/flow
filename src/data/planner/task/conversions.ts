@@ -10,7 +10,7 @@ import type { TaskFormModel, TaskModel } from './models'
 export const DEFAULT_TASK_COLOR = 'BLUE' as const
 
 function toUtcStartOfSelectedDay(date: Date): Date {
-  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
 export function toTaskModelFromRead(dto: TaskReadDto): TaskModel {

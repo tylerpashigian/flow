@@ -16,7 +16,7 @@ describe('planner domain utilities', () => {
   test('computeEndDayUtc derives end from start + duration', () => {
     const end = computeEndDayUtc(new Date('2026-03-31T08:12:00.000Z'), 3)
 
-    expect(end.toISOString()).toBe('2026-04-03T00:00:00.000Z')
+    expect(end.toISOString()).toBe('2026-04-03T08:12:00.000Z')
   })
 
   test('computeEndDayUtc throws domain validation error for invalid duration', () => {

@@ -69,12 +69,6 @@ export function isPlannerDomainValidationError(
   return error instanceof PlannerDomainValidationError
 }
 
-export function toUtcStartOfDay(value: Date): Date {
-  const normalized = new Date(value)
-  normalized.setUTCHours(0, 0, 0, 0)
-  return normalized
-}
-
 export function computeEndDayUtc(
   startDayUtc: Date,
   durationDays: number,
@@ -83,9 +77,7 @@ export function computeEndDayUtc(
     throw new PlannerDomainValidationError('durationDays must be >= 1')
   }
 
-  return new Date(
-    toUtcStartOfDay(startDayUtc).getTime() + durationDays * DAY_MS,
-  )
+  return new Date(startDayUtc.getTime() + durationDays * DAY_MS)
 }
 
 export function assertWindow(windowStartUtc: Date, windowEndUtc: Date): void {

@@ -73,8 +73,8 @@ describe('planner router behavior', () => {
       estimatedEffortDays: 4,
     })
 
-    expect(created.startDayUtc.toISOString()).toBe('2026-03-31T00:00:00.000Z')
-    expect(created.endDayUtc.toISOString()).toBe('2026-04-03T00:00:00.000Z')
+    expect(created.startDayUtc.toISOString()).toBe('2026-03-31T08:00:00.000Z')
+    expect(created.endDayUtc.toISOString()).toBe('2026-04-03T08:00:00.000Z')
     expect(created.estimatedEffortDays).toBe(4)
   })
 

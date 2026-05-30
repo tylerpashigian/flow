@@ -27,7 +27,7 @@ describe('planner task conversions', () => {
       segmentId: 'segment_1',
       name: 'Define timeline data model',
       color: DEFAULT_TASK_COLOR,
-      startDayUtc: new Date('2026-04-02T00:00:00.000Z'),
+      startDayUtc: new Date(2026, 3, 2),
       durationDays: 3,
     })
   })
@@ -113,7 +113,7 @@ describe('planner task conversions', () => {
       segmentId: 'segment_1',
       name: 'Updated task',
       color: DEFAULT_TASK_COLOR,
-      startDayUtc: new Date('2026-04-02T00:00:00.000Z'),
+      startDayUtc: new Date(2026, 3, 2),
       durationDays: 4,
     })
   })
