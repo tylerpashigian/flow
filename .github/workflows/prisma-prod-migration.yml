@@ -1,0 +1,41 @@
+name: Prisma Prod Migration
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "prisma/schema.prisma"
+      - "prisma/migrations/**"
+      - "prisma.config.ts"
+
+jobs:
+  migrate-prod:
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: db-migrate-production
+      cancel-in-progress: false
+
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Use Node.js 22.12
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm prisma migrate deploy
