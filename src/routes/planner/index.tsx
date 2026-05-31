@@ -1,25 +1,44 @@
-import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   createFileRoute,
   getRouteApi,
   useNavigate,
 } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import {
   formatPlannerDay,
-  formatPlannerLabel,
-  formatPlannerMonthLabel,
-  getTodayPlannerDayKey,
-  parsePlannerDay,
+  fromPlannerDayKey,
+  toPlannerDayKey,
 } from '@/lib/date'
-import type { PlannerDayKey } from '@/types/date'
+import { SidebarLayout } from '@/components/sidebar-layout'
 import { Button } from '@/components/ui/button'
-import { PlannerLayoutRoute } from './route'
+import {
+  toCreateResourceInput,
+  toCreateSegmentInput,
+  toCreateTaskInput,
+  toOptionalTaskAssignmentInput,
+} from '#/data/planner'
+import {
+  CreateResourceDialog,
+  CreateSegmentDialog,
+  CreateTaskDialog,
+} from '@/features/planner/components/modals'
+import { usePlannerBoard, usePlannerBootstrap } from '@/features/planner/hooks'
+import { PlannerBoardCanvas } from '@/features/planner/board/board-canvas'
+import {
+  buildPlannerBoardRows,
+  PLANNER_ROW_LABEL_WIDTH,
+} from '@/features/planner/board/board-view'
+import {
+  expandPlannerBoardWindow,
+  getPlannerBoardVisibleDayKeys,
+  getRenderedPlannerBoardWindow,
+  hasExplicitPlannerBoardWindow,
+  normalizePlannerBoardWindowSearch,
+  shouldAutoCenterPlannerBoardToday,
+  toPlannerBoardWindowSearch,
+} from '@/features/planner/board/board-window'
 
 const DAY_WIDTH = 160
-const WINDOW_DAY_COUNT = 2001
-const CENTER_INDEX = Math.floor(WINDOW_DAY_COUNT / 2)
-const EDGE_THRESHOLD = 250
 const plannerRouteApi = getRouteApi('/planner')
 
 export const Route = createFileRoute('/planner/')({
@@ -29,130 +48,194 @@ export const Route = createFileRoute('/planner/')({
 function PlannerTimeline() {
   const navigate = useNavigate({ from: Route.fullPath })
   const search = plannerRouteApi.useSearch()
-  const { sidebarData } = PlannerLayoutRoute.useLoaderData()
 
-  const todayDayKey = getTodayPlannerDayKey()
-  const parsedSearchDay = useMemo(
-    () => parsePlannerDay(search.date),
-    [search.date],
+  const todayDayKey = toPlannerDayKey(new Date())
+  const hasExplicitWindow = hasExplicitPlannerBoardWindow(search)
+  const activeWindow = useMemo(
+    () => normalizePlannerBoardWindowSearch(search, todayDayKey),
+    [search, todayDayKey],
   )
-  const normalizedDay = parsedSearchDay ?? todayDayKey
-  const normalizedDateString = formatPlannerDay(normalizedDay)
-
+  const bootstrap = usePlannerBootstrap()
+  const activePlan = bootstrap.activePlan
+  const activePlanId = activePlan?.id ?? 'pending-plan'
   const parentRef = useRef<HTMLDivElement | null>(null)
-  const isRecenteringRef = useRef(false)
-  const lastAppliedDateRef = useRef(normalizedDateString)
-  const [baseDayKey, setBaseDayKey] = useState<PlannerDayKey>(
-    () => normalizedDay,
-  )
+  const lastAutoScrollKeyRef = useRef<string | null>(null)
 
-  const recenterToMiddle = useCallback(() => {
-    const container = parentRef.current
-
-    if (!container) {
-      return
-    }
-
-    const centeredScrollLeft =
-      CENTER_INDEX * DAY_WIDTH + DAY_WIDTH / 2 - container.clientWidth / 2
-    container.scrollLeft = Math.max(0, centeredScrollLeft)
-  }, [])
-
-  const virtualizer = useVirtualizer({
-    count: WINDOW_DAY_COUNT,
-    getScrollElement: () => parentRef.current,
-    horizontal: true,
-    estimateSize: () => DAY_WIDTH,
-    overscan: 8,
-  })
-
-  useEffect(() => {
-    recenterToMiddle()
-  }, [recenterToMiddle])
-
-  useEffect(() => {
-    if (lastAppliedDateRef.current === normalizedDateString) {
-      return
-    }
-
-    lastAppliedDateRef.current = normalizedDateString
-    setBaseDayKey(normalizedDay)
-    recenterToMiddle()
-  }, [normalizedDateString, normalizedDay, recenterToMiddle])
-
-  useEffect(() => {
-    const container = parentRef.current
-
-    if (!container) {
-      return
-    }
-
-    const onScroll = () => {
-      if (isRecenteringRef.current) {
-        return
-      }
-
-      const centerPx = container.scrollLeft + container.clientWidth / 2
-      const centeredIndex = Math.floor(centerPx / DAY_WIDTH)
-
-      if (
-        centeredIndex > EDGE_THRESHOLD &&
-        centeredIndex < WINDOW_DAY_COUNT - EDGE_THRESHOLD
-      ) {
-        return
-      }
-
-      const delta = centeredIndex - CENTER_INDEX
-
-      if (delta === 0) {
-        return
-      }
-
-      const centerOffsetInCell =
-        centerPx - (centeredIndex * DAY_WIDTH + DAY_WIDTH / 2)
-
-      isRecenteringRef.current = true
-      setBaseDayKey((previous) => previous + delta)
-
-      const recenteredCenterPx =
-        CENTER_INDEX * DAY_WIDTH + DAY_WIDTH / 2 + centerOffsetInCell
-      container.scrollLeft = Math.max(
-        0,
-        recenteredCenterPx - container.clientWidth / 2,
-      )
-
-      requestAnimationFrame(() => {
-        isRecenteringRef.current = false
-      })
-    }
-
-    container.addEventListener('scroll', onScroll, { passive: true })
-
-    return () => {
-      container.removeEventListener('scroll', onScroll)
-    }
-  }, [])
-
-  const virtualItems = virtualizer.getVirtualItems()
-
-  const jumpToToday = () => {
-    const todayKey = getTodayPlannerDayKey()
-    const todayDateString = formatPlannerDay(todayKey)
-
-    lastAppliedDateRef.current = todayDateString
-    setBaseDayKey(todayKey)
-    recenterToMiddle()
-
+  const expandWindow = (direction: 'before' | 'after') => {
     navigate({
       to: '/planner',
       replace: true,
-      search: () => ({
-        date: todayDateString,
-      }),
+      search: () =>
+        toPlannerBoardWindowSearch(
+          expandPlannerBoardWindow(activeWindow, direction),
+        ),
     })
   }
 
-  return (
+  const boardWindow = useMemo(
+    () => ({
+      planId: activePlanId,
+      windowStartUtc: fromPlannerDayKey(activeWindow.windowStartDayKey),
+      windowEndUtc: fromPlannerDayKey(activeWindow.windowEndDayKey + 1),
+    }),
+    [activePlanId, activeWindow],
+  )
+  const plannerBoard = usePlannerBoard(boardWindow, {
+    enabled: Boolean(activePlan),
+  })
+  const isBoardLoading =
+    bootstrap.status.isLoading || plannerBoard.status.isLoading
+  const renderedWindow = useMemo(
+    () =>
+      plannerBoard.board
+        ? getRenderedPlannerBoardWindow(activeWindow, plannerBoard.board.tasks)
+        : activeWindow,
+    [activeWindow, plannerBoard.board],
+  )
+  const boardRows = useMemo(
+    () =>
+      plannerBoard.board
+        ? buildPlannerBoardRows(plannerBoard.board, plannerBoard.relations, {
+            renderedWindowStartDayKey: renderedWindow.windowStartDayKey,
+          })
+        : [],
+    [
+      renderedWindow.windowStartDayKey,
+      plannerBoard.board,
+      plannerBoard.relations,
+    ],
+  )
+  const visibleDayKeys = useMemo(
+    () => getPlannerBoardVisibleDayKeys(renderedWindow),
+    [renderedWindow],
+  )
+  const columns = useMemo(
+    () =>
+      visibleDayKeys.map((dayKey, index) => ({
+        key: formatPlannerDay(dayKey),
+        dayKey,
+        start: index * DAY_WIDTH,
+      })),
+    [visibleDayKeys],
+  )
+  const totalTimelineWidth = columns.length * DAY_WIDTH
+  const shouldScrollToToday = shouldAutoCenterPlannerBoardToday({
+    hasExplicitWindow,
+    todayDayKey,
+    renderedWindow,
+  })
+  const initialScrollKey = shouldScrollToToday
+    ? `${activeWindow.windowStartDayKey}-${activeWindow.windowEndDayKey}-${renderedWindow.windowStartDayKey}-${renderedWindow.windowEndDayKey}`
+    : null
+
+  useLayoutEffect(() => {
+    if (
+      initialScrollKey === null ||
+      isBoardLoading ||
+      lastAutoScrollKeyRef.current === initialScrollKey
+    ) {
+      return
+    }
+
+    const container = parentRef.current
+
+    if (!container) {
+      return
+    }
+
+    const todayIndex = todayDayKey - renderedWindow.windowStartDayKey
+
+    if (todayIndex < 0 || todayIndex >= columns.length) {
+      return
+    }
+
+    const targetScrollLeft = Math.max(
+      0,
+      PLANNER_ROW_LABEL_WIDTH +
+        todayIndex * DAY_WIDTH +
+        DAY_WIDTH / 2 -
+        container.clientWidth / 2,
+    )
+
+    container.scrollLeft = targetScrollLeft
+    lastAutoScrollKeyRef.current = initialScrollKey
+  }, [
+    columns.length,
+    initialScrollKey,
+    isBoardLoading,
+    renderedWindow.windowStartDayKey,
+    todayDayKey,
+  ])
+
+  const sidebarContent = (
+    <div className="flex flex-col gap-2">
+      <p className="text-muted-foreground px-2 text-xs font-medium">
+        Planner actions
+      </p>
+      {activePlan ? (
+        <>
+          <CreateResourceDialog
+            onSubmit={async (value) => {
+              await plannerBoard.actions.createResource(
+                toCreateResourceInput(value, activePlan.id),
+              )
+            }}
+          />
+          <CreateSegmentDialog
+            onSubmit={async (value) => {
+              await plannerBoard.actions.createSegment(
+                toCreateSegmentInput(value, activePlan.id),
+              )
+            }}
+          />
+          <CreateTaskDialog
+            segments={bootstrap.segments}
+            resources={bootstrap.resources}
+            defaultStartDate={new Date()}
+            onSubmit={async (value) => {
+              const task = await plannerBoard.actions.createTask(
+                toCreateTaskInput(value, activePlan.id),
+              )
+              const assignmentInput = toOptionalTaskAssignmentInput(
+                value,
+                task.id,
+              )
+
+              if (!assignmentInput) {
+                return 'Task created'
+              }
+
+              try {
+                await plannerBoard.actions.addAssignment(assignmentInput)
+              } catch (error) {
+                throw new Error(
+                  error instanceof Error
+                    ? error.message
+                    : 'Task created, but resource assignment failed',
+                )
+              }
+
+              return 'Task created and assigned'
+            }}
+          />
+        </>
+      ) : (
+        <p className="text-muted-foreground px-2 text-xs">
+          Planner actions will be available once the active plan loads.
+        </p>
+      )}
+      <div className="border-border mt-1 flex flex-col gap-2 border-t pt-2">
+        <Button variant="outline" onClick={() => expandWindow('before')}>
+          Load 2 more weeks before
+        </Button>
+        <Button variant="outline" onClick={() => expandWindow('after')}>
+          Load 2 more weeks after
+        </Button>
+      </div>
+    </div>
+  )
+
+  const content = (
     <div
       className="flex h-full min-h-0 flex-col gap-3 p-3"
       id="planner-content"
@@ -161,59 +244,40 @@ function PlannerTimeline() {
         <div>
           <h1 className="text-xl font-semibold">Planner</h1>
           <p className="text-sm text-muted-foreground">
-            Infinite virtualized day timeline anchored to{' '}
-            {formatPlannerDay(baseDayKey)}.
+            Showing {formatPlannerDay(activeWindow.windowStartDayKey)} through{' '}
+            {formatPlannerDay(activeWindow.windowEndDayKey)}.
           </p>
           <p className="text-xs text-muted-foreground">
-            Signed in as {sidebarData.user.name}
+            Active plan:{' '}
+            {bootstrap.status.isLoading
+              ? 'Loading...'
+              : (activePlan?.name ?? 'Unavailable')}
           </p>
         </div>
-        <Button onClick={jumpToToday}>Jump to today</Button>
       </div>
 
-      <div className="rounded-lg border bg-card flex-1 min-h-0">
-        <div
-          ref={parentRef}
-          className="h-full overflow-x-auto overflow-y-hidden"
-        >
-          <div
-            className="relative h-full"
-            style={{
-              width: virtualizer.getTotalSize(),
-            }}
-          >
-            {virtualItems.map((virtualItem) => {
-              const dayKey = baseDayKey + (virtualItem.index - CENTER_INDEX)
-              const isToday = dayKey === todayDayKey
+      {bootstrap.status.error ? (
+        <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {bootstrap.status.error.message}
+        </p>
+      ) : null}
 
-              return (
-                <div
-                  key={virtualItem.key}
-                  className="absolute top-0 h-full border-r border-border"
-                  style={{
-                    width: DAY_WIDTH,
-                    transform: `translateX(${virtualItem.start}px)`,
-                  }}
-                >
-                  <div
-                    className={`sticky top-0 border-b px-3 py-2 text-xs ${
-                      isToday ? 'bg-blue-100 text-blue-900' : 'bg-muted/80'
-                    }`}
-                  >
-                    <div className="font-semibold">
-                      {formatPlannerLabel(dayKey)}
-                    </div>
-                    <div className="text-[11px] opacity-70">
-                      {formatPlannerMonthLabel(dayKey)}
-                    </div>
-                  </div>
-                  <div className="h-[calc(100%-48px)] bg-background/50" />
-                </div>
-              )
-            })}
-          </div>
-        </div>
+      <div className="rounded-lg border bg-card flex-1 min-h-0">
+        <PlannerBoardCanvas
+          boardRows={boardRows}
+          columns={columns}
+          dayWidth={DAY_WIDTH}
+          totalTimelineWidth={totalTimelineWidth}
+          scrollRef={parentRef}
+          todayDayKey={todayDayKey}
+          coreWindowStartDayKey={activeWindow.windowStartDayKey}
+          coreWindowEndDayKey={activeWindow.windowEndDayKey}
+          isLoading={isBoardLoading}
+          error={bootstrap.status.error ?? plannerBoard.status.error}
+        />
       </div>
     </div>
   )
+
+  return <SidebarLayout sidebarContent={sidebarContent} content={content} />
 }

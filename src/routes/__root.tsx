@@ -7,6 +7,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
+import { Toaster } from '../components/ui/sonner'
 
 import TanStackQueryProvider from '../integrations/tanstack-query/root-provider'
 
@@ -38,7 +39,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Flow',
       },
     ],
     links: [
@@ -66,6 +67,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           <div className="flex-1 min-h-0 flex flex-col justify-between overflow-y-scroll">
             {children}
             <Footer />
+            <Toaster />
             <TanStackDevtools
               config={{
                 position: 'bottom-right',

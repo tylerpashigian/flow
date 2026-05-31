@@ -37,10 +37,6 @@ export function parsePlannerDay(value?: string): PlannerDayKey | null {
   return toPlannerDayKey(parsed)
 }
 
-export function getTodayPlannerDayKey(): PlannerDayKey {
-  return toPlannerDayKey(new Date())
-}
-
 export function formatPlannerLabel(dayKey: PlannerDayKey): string {
   return format(fromPlannerDayKey(dayKey), 'EEE, MMM d')
 }
