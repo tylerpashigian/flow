@@ -31,7 +31,7 @@ import {
   assertWindow,
   buildTaskOverlapConflicts,
   buildUnavailabilityConflicts,
-  computeEndDayUtc,
+  computeEndUtc,
   dedupeConflicts,
   isPlannerDomainValidationError,
   mapTaskToTaskRead,
@@ -61,12 +61,9 @@ function assertWindowOrThrowTrpc(
   }
 }
 
-function computeEndDayUtcOrThrowTrpc(
-  startDayUtc: Date,
-  durationDays: number,
-): Date {
+function computeEndUtcOrThrowTrpc(startUtc: Date, durationDays: number): Date {
   try {
-    return computeEndDayUtc(startDayUtc, durationDays)
+    return computeEndUtc(startUtc, durationDays)
   } catch (error) {
     mapPlannerDomainError(error)
   }
@@ -132,7 +129,16 @@ async function listTaskReadsByPlanWindow(
   })
 
   return TaskReadSchema.array().parse(
-    tasks.map((task) => mapTaskToTaskRead(task, STANDARD_EFFORT_DAY_MINUTES)),
+    tasks.map((task) =>
+      mapTaskToTaskRead(
+        {
+          ...task,
+          startUtc: task.startDayUtc,
+          endUtc: task.endDayUtc,
+        },
+        STANDARD_EFFORT_DAY_MINUTES,
+      ),
+    ),
   )
 }
 
@@ -179,13 +185,19 @@ async function listConflictsByWindow(
   const assignedTasks = assignments.map((assignment) => ({
     id: assignment.task.id,
     resourceId: assignment.resourceId,
-    startDayUtc: assignment.task.startDayUtc,
-    endDayUtc: assignment.task.endDayUtc,
+    startUtc: assignment.task.startDayUtc,
+    endUtc: assignment.task.endDayUtc,
+  }))
+  const resourceWindows = unavailabilityWindows.map((window) => ({
+    resourceId: window.resourceId,
+    startUtc: window.startDayUtc,
+    endUtc: window.endDayUtc,
+    reason: window.reason,
   }))
 
   const conflicts = dedupeConflicts([
     ...buildTaskOverlapConflicts(assignedTasks),
-    ...buildUnavailabilityConflicts(assignedTasks, unavailabilityWindows),
+    ...buildUnavailabilityConflicts(assignedTasks, resourceWindows),
   ])
 
   return PlannerConflictListSchema.parse(conflicts)
@@ -443,11 +455,8 @@ export const plannerRouter = createTRPCRouter({
           }
         }
 
-        const startDayUtc = new Date(input.startDayUtc)
-        const endDayUtc = computeEndDayUtcOrThrowTrpc(
-          startDayUtc,
-          input.durationDays,
-        )
+        const startUtc = new Date(input.startUtc)
+        const endUtc = computeEndUtcOrThrowTrpc(startUtc, input.durationDays)
 
         const task = await prisma.task.create({
           data: {
@@ -455,14 +464,18 @@ export const plannerRouter = createTRPCRouter({
             segmentId: input.segmentId ?? null,
             name: input.name,
             color: input.color,
-            startDayUtc,
+            startDayUtc: startUtc,
             durationDays: input.durationDays,
             estimatedEffortDays: input.estimatedEffortDays ?? null,
-            endDayUtc,
+            endDayUtc: endUtc,
           },
         })
 
-        return TaskSchema.parse(task)
+        return TaskSchema.parse({
+          ...task,
+          startUtc: task.startDayUtc,
+          endUtc: task.endDayUtc,
+        })
       }),
     update: publicProcedure
       .input(UpdateTaskInputSchema)
@@ -491,11 +504,11 @@ export const plannerRouter = createTRPCRouter({
           }
         }
 
-        const nextStart = input.startDayUtc
-          ? new Date(input.startDayUtc)
+        const nextStart = input.startUtc
+          ? new Date(input.startUtc)
           : existing.startDayUtc
         const nextDuration = input.durationDays ?? existing.durationDays
-        const nextEnd = computeEndDayUtcOrThrowTrpc(nextStart, nextDuration)
+        const nextEnd = computeEndUtcOrThrowTrpc(nextStart, nextDuration)
 
         const task = await prisma.task.update({
           where: { id: existing.id },
@@ -510,7 +523,11 @@ export const plannerRouter = createTRPCRouter({
           },
         })
 
-        return TaskSchema.parse(task)
+        return TaskSchema.parse({
+          ...task,
+          startUtc: task.startDayUtc,
+          endUtc: task.endDayUtc,
+        })
       }),
   }),
   assignments: createTRPCRouter({

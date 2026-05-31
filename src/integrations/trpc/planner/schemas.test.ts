@@ -16,11 +16,11 @@ describe('planner schema contracts', () => {
       segmentId: null,
       name: 'Task A',
       color: 'BLUE',
-      startDayUtc: '2026-03-31T00:00:00.000Z',
+      startUtc: '2026-03-31T00:00:00.000Z',
       durationDays: 2,
     })
 
-    expect(parsed.startDayUtc).toBeInstanceOf(Date)
+    expect(parsed.startUtc).toBeInstanceOf(Date)
   })
 
   test('createTaskInputSchema rejects invalid duration', () => {
@@ -29,7 +29,7 @@ describe('planner schema contracts', () => {
         planId: 'plan_1',
         name: 'Task A',
         color: 'BLUE',
-        startDayUtc: '2026-03-31T00:00:00.000Z',
+        startUtc: '2026-03-31T00:00:00.000Z',
         durationDays: 0,
       }),
     ).toThrow()

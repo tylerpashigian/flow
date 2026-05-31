@@ -125,7 +125,9 @@ describe('planner service', () => {
       },
     ])
 
-    const result = await plannerService.listResourcesByPlan({ planId: 'plan_1' })
+    const result = await plannerService.listResourcesByPlan({
+      planId: 'plan_1',
+    })
 
     expect(result[0]?.name).toBe('Resource 1')
     expect(resourcesListByPlanQueryMock).toHaveBeenCalledWith({
@@ -336,10 +338,10 @@ describe('planner service', () => {
       segmentId: null,
       name: 'Task 1',
       color: 'BLUE',
-      startDayUtc: new Date('2026-04-01T00:00:00.000Z'),
+      startUtc: new Date('2026-04-01T00:00:00.000Z'),
       durationDays: 2,
       estimatedEffortDays: null,
-      endDayUtc: new Date('2026-04-03T00:00:00.000Z'),
+      endUtc: new Date('2026-04-03T00:00:00.000Z'),
       createdAt: new Date('2026-04-01T00:00:00.000Z'),
       updatedAt: new Date('2026-04-01T00:00:00.000Z'),
     })
@@ -349,7 +351,7 @@ describe('planner service', () => {
       segmentId: null,
       name: 'Task 1',
       color: 'BLUE',
-      startDayUtc: new Date('2026-04-01T00:00:00.000Z'),
+      startUtc: new Date('2026-04-01T00:00:00.000Z'),
       durationDays: 2,
     })
 
@@ -359,7 +361,7 @@ describe('planner service', () => {
       segmentId: null,
       name: 'Task 1',
       color: 'BLUE',
-      startDayUtc: new Date('2026-04-01T00:00:00.000Z'),
+      startUtc: new Date('2026-04-01T00:00:00.000Z'),
       durationDays: 2,
     })
   })
@@ -371,10 +373,10 @@ describe('planner service', () => {
       segmentId: 'segment_1',
       name: 'Task 1 Updated',
       color: 'GREEN',
-      startDayUtc: new Date('2026-04-02T00:00:00.000Z'),
+      startUtc: new Date('2026-04-02T00:00:00.000Z'),
       durationDays: 3,
       estimatedEffortDays: 2,
-      endDayUtc: new Date('2026-04-05T00:00:00.000Z'),
+      endUtc: new Date('2026-04-05T00:00:00.000Z'),
       createdAt: new Date('2026-04-01T00:00:00.000Z'),
       updatedAt: new Date('2026-04-02T00:00:00.000Z'),
     })

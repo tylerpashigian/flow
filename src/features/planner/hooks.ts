@@ -198,7 +198,7 @@ function taskBelongsToBoardSnapshot(
   const windowStartUtc = new Date(boardInput.windowStartUtc)
   const windowEndUtc = new Date(boardInput.windowEndUtc)
   const overlapsWindow =
-    task.startDayUtc < windowEndUtc && task.endDayUtc > windowStartUtc
+    task.startUtc < windowEndUtc && task.endUtc > windowStartUtc
   const matchesSegment =
     boardInput.segmentIds.length === 0 ||
     (task.segmentId !== null && boardInput.segmentIds.includes(task.segmentId))
@@ -208,8 +208,7 @@ function taskBelongsToBoardSnapshot(
 
 function sortTasksByBoardOrder(tasks: TaskModel[]): TaskModel[] {
   return [...tasks].sort((left, right) => {
-    const startDifference =
-      left.startDayUtc.getTime() - right.startDayUtc.getTime()
+    const startDifference = left.startUtc.getTime() - right.startUtc.getTime()
 
     if (startDifference !== 0) {
       return startDifference

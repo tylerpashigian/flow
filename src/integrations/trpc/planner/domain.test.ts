@@ -5,7 +5,7 @@ import {
   buildUnavailabilityConflicts,
   computeProjectedSchedule,
   computeResourceDailyFte,
-  computeEndDayUtc,
+  computeEndUtc,
   dedupeConflicts,
   mapTaskToTaskRead,
   PlannerDomainValidationError,
@@ -13,15 +13,16 @@ import {
 } from './domain'
 
 describe('planner domain utilities', () => {
-  test('computeEndDayUtc derives end from start + duration', () => {
-    const end = computeEndDayUtc(new Date('2026-03-31T08:12:00.000Z'), 3)
+  test('computeEndUtc derives end from start + duration', () => {
+    const end = computeEndUtc(new Date('2026-03-31T08:12:00.000Z'), 3)
 
     expect(end.toISOString()).toBe('2026-04-03T08:12:00.000Z')
   })
 
-  test('computeEndDayUtc throws domain validation error for invalid duration', () => {
-    expect(() => computeEndDayUtc(new Date('2026-03-31T08:12:00.000Z'), 0))
-      .toThrowError(PlannerDomainValidationError)
+  test('computeEndUtc throws domain validation error for invalid duration', () => {
+    expect(() =>
+      computeEndUtc(new Date('2026-03-31T08:12:00.000Z'), 0),
+    ).toThrowError(PlannerDomainValidationError)
   })
 
   test('assertWindow throws domain validation error for invalid window', () => {
@@ -48,14 +49,14 @@ describe('planner domain utilities', () => {
       {
         id: 't1',
         resourceId: 'r1',
-        startDayUtc: new Date('2026-03-31T00:00:00.000Z'),
-        endDayUtc: new Date('2026-04-03T00:00:00.000Z'),
+        startUtc: new Date('2026-03-31T00:00:00.000Z'),
+        endUtc: new Date('2026-04-03T00:00:00.000Z'),
       },
       {
         id: 't2',
         resourceId: 'r1',
-        startDayUtc: new Date('2026-04-01T00:00:00.000Z'),
-        endDayUtc: new Date('2026-04-04T00:00:00.000Z'),
+        startUtc: new Date('2026-04-01T00:00:00.000Z'),
+        endUtc: new Date('2026-04-04T00:00:00.000Z'),
       },
     ])
 
@@ -74,15 +75,15 @@ describe('planner domain utilities', () => {
         {
           id: 't1',
           resourceId: 'r1',
-          startDayUtc: new Date('2026-04-02T00:00:00.000Z'),
-          endDayUtc: new Date('2026-04-05T00:00:00.000Z'),
+          startUtc: new Date('2026-04-02T00:00:00.000Z'),
+          endUtc: new Date('2026-04-05T00:00:00.000Z'),
         },
       ],
       [
         {
           resourceId: 'r1',
-          startDayUtc: new Date('2026-04-03T00:00:00.000Z'),
-          endDayUtc: new Date('2026-04-04T00:00:00.000Z'),
+          startUtc: new Date('2026-04-03T00:00:00.000Z'),
+          endUtc: new Date('2026-04-04T00:00:00.000Z'),
           reason: 'PTO',
         },
       ],
@@ -174,10 +175,10 @@ describe('planner domain utilities', () => {
         segmentId: null,
         name: 'Task 1',
         color: 'BLUE',
-        startDayUtc: new Date('2026-04-01T00:00:00.000Z'),
+        startUtc: new Date('2026-04-01T00:00:00.000Z'),
         durationDays: 3,
         estimatedEffortDays: 3,
-        endDayUtc: new Date('2026-04-04T00:00:00.000Z'),
+        endUtc: new Date('2026-04-04T00:00:00.000Z'),
         createdAt: new Date('2026-04-01T00:00:00.000Z'),
         updatedAt: new Date('2026-04-01T00:00:00.000Z'),
         assignments: [

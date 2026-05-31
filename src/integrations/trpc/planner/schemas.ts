@@ -48,10 +48,10 @@ export const TaskSchema = z.object({
   segmentId: z.string().nullable(),
   name: z.string(),
   color: PlannerTaskColorSchema,
-  startDayUtc: z.date(),
+  startUtc: z.date(),
   durationDays: z.number().int().min(1),
   estimatedEffortDays: z.number().int().min(1).nullable(),
-  endDayUtc: z.date(),
+  endUtc: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),
 })
@@ -91,8 +91,8 @@ export const TaskDependencySchema = z.object({
 export const ResourceUnavailabilitySchema = z.object({
   id: z.string(),
   resourceId: z.string(),
-  startDayUtc: z.date(),
-  endDayUtc: z.date(),
+  startUtc: z.date(),
+  endUtc: z.date(),
   reason: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -213,7 +213,7 @@ export const CreateTaskInputSchema = z.object({
   segmentId: z.string().nullable().optional(),
   name: z.string().trim().min(1),
   color: PlannerTaskColorSchema,
-  startDayUtc: IsoDateSchema,
+  startUtc: IsoDateSchema,
   durationDays: z.number().int().min(1),
   estimatedEffortDays: z.number().int().min(1).optional(),
 })
@@ -223,7 +223,7 @@ export const UpdateTaskInputSchema = z.object({
   segmentId: z.string().nullable().optional(),
   name: z.string().trim().min(1).optional(),
   color: PlannerTaskColorSchema.optional(),
-  startDayUtc: IsoDateSchema.optional(),
+  startUtc: IsoDateSchema.optional(),
   durationDays: z.number().int().min(1).optional(),
   estimatedEffortDays: z.number().int().min(1).nullable().optional(),
 })

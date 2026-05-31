@@ -1,8 +1,4 @@
-import {
-  formatPlannerDay,
-  parsePlannerDay,
-  toPlannerDayKey,
-} from '@/lib/date'
+import { formatPlannerDay, parsePlannerDay, toPlannerDayKey } from '@/lib/date'
 import type { PlannerDayKey } from '@/types/date'
 import type { TaskModel } from '#/data/planner'
 
@@ -89,13 +85,13 @@ export function getPlannerBoardVisibleDayKeys(
 
 export function getRenderedPlannerBoardWindow(
   coreWindow: PlannerBoardWindowModel,
-  tasks: Pick<TaskModel, 'startDayUtc' | 'durationDays'>[],
+  tasks: Pick<TaskModel, 'startUtc' | 'durationDays'>[],
 ): PlannerBoardWindowModel {
   let renderedStartDayKey = coreWindow.windowStartDayKey
   let renderedEndDayKey = coreWindow.windowEndDayKey
 
   for (const task of tasks) {
-    const taskStartDayKey = toPlannerDayKey(task.startDayUtc)
+    const taskStartDayKey = toPlannerDayKey(task.startUtc)
     const taskEndDayKey = taskStartDayKey + task.durationDays - 1
 
     if (taskStartDayKey < renderedStartDayKey) {

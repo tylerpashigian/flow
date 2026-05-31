@@ -51,9 +51,9 @@ describe('planner board window', () => {
     expect(hasPlannerBoardWindowParams({ windowStart: '2026-04-01' })).toBe(
       true,
     )
-    expect(
-      hasExplicitPlannerBoardWindow({ windowStart: '2026-04-01' }),
-    ).toBe(false)
+    expect(hasExplicitPlannerBoardWindow({ windowStart: '2026-04-01' })).toBe(
+      false,
+    )
 
     expect(
       hasExplicitPlannerBoardWindow({
@@ -104,11 +104,11 @@ describe('planner board window', () => {
         },
         [
           {
-            startDayUtc: fromPlannerDayKey(20544),
+            startUtc: fromPlannerDayKey(20544),
             durationDays: 4,
           },
           {
-            startDayUtc: fromPlannerDayKey(20571),
+            startUtc: fromPlannerDayKey(20571),
             durationDays: 3,
           },
         ],
@@ -128,7 +128,7 @@ describe('planner board window', () => {
         },
         [
           {
-            startDayUtc: fromPlannerDayKey(20532),
+            startUtc: fromPlannerDayKey(20532),
             durationDays: 8,
           },
         ],

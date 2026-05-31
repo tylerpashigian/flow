@@ -3,14 +3,14 @@ import { DAY_MS, STANDARD_EFFORT_DAY_MINUTES } from './constants'
 interface AssignedTaskSlice {
   resourceId: string
   id: string
-  startDayUtc: Date
-  endDayUtc: Date
+  startUtc: Date
+  endUtc: Date
 }
 
 interface ResourceWindowSlice {
   resourceId: string
-  startDayUtc: Date
-  endDayUtc: Date
+  startUtc: Date
+  endUtc: Date
   reason: string | null
 }
 
@@ -47,10 +47,10 @@ interface TaskWithAssignmentsForRead {
   segmentId: string | null
   name: string
   color: string
-  startDayUtc: Date
+  startUtc: Date
   durationDays: number
   estimatedEffortDays: number | null
-  endDayUtc: Date
+  endUtc: Date
   createdAt: Date
   updatedAt: Date
   assignments: TaskReadAssignmentSlice[]
@@ -69,15 +69,12 @@ export function isPlannerDomainValidationError(
   return error instanceof PlannerDomainValidationError
 }
 
-export function computeEndDayUtc(
-  startDayUtc: Date,
-  durationDays: number,
-): Date {
+export function computeEndUtc(startUtc: Date, durationDays: number): Date {
   if (durationDays < 1) {
     throw new PlannerDomainValidationError('durationDays must be >= 1')
   }
 
-  return new Date(startDayUtc.getTime() + durationDays * DAY_MS)
+  return new Date(startUtc.getTime() + durationDays * DAY_MS)
 }
 
 export function assertWindow(windowStartUtc: Date, windowEndUtc: Date): void {
@@ -117,7 +114,7 @@ interface ProjectionAssignmentSlice {
 }
 
 export function computeProjectedSchedule(
-  startDayUtc: Date,
+  startUtc: Date,
   plannedDurationDays: number,
   estimatedEffortDays: number | null,
   assignments: ProjectionAssignmentSlice[],
@@ -142,7 +139,7 @@ export function computeProjectedSchedule(
     return {
       projectedDurationDays: plannedDurationDays,
       projectedEndUtc: new Date(
-        startDayUtc.getTime() + plannedDurationDays * DAY_MS,
+        startUtc.getTime() + plannedDurationDays * DAY_MS,
       ),
       scheduleVarianceDays: 0,
       taskProgressPercent,
@@ -165,7 +162,7 @@ export function computeProjectedSchedule(
     return {
       projectedDurationDays: plannedDurationDays,
       projectedEndUtc: new Date(
-        startDayUtc.getTime() + plannedDurationDays * DAY_MS,
+        startUtc.getTime() + plannedDurationDays * DAY_MS,
       ),
       scheduleVarianceDays: 0,
       taskProgressPercent,
@@ -180,7 +177,7 @@ export function computeProjectedSchedule(
     Math.ceil(projectedDurationDays),
   )
   const projectedEndUtc = new Date(
-    startDayUtc.getTime() + projectedDurationForDateMath * DAY_MS,
+    startUtc.getTime() + projectedDurationForDateMath * DAY_MS,
   )
   const scheduleVarianceDays = roundToTwoDecimals(
     projectedDurationDays - plannedDurationDays,
@@ -204,7 +201,7 @@ export function mapTaskToTaskRead(
     scheduleVarianceDays,
     taskProgressPercent,
   } = computeProjectedSchedule(
-    task.startDayUtc,
+    task.startUtc,
     task.durationDays,
     task.estimatedEffortDays,
     task.assignments,
@@ -217,10 +214,10 @@ export function mapTaskToTaskRead(
     segmentId: task.segmentId,
     name: task.name,
     color: task.color,
-    startDayUtc: task.startDayUtc,
+    startUtc: task.startUtc,
     durationDays: task.durationDays,
     estimatedEffortDays: task.estimatedEffortDays,
-    endDayUtc: task.endDayUtc,
+    endUtc: task.endUtc,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     taskProgressPercent,
@@ -265,7 +262,7 @@ export function buildTaskOverlapConflicts(
 
   for (const [resourceId, tasks] of grouped.entries()) {
     const sorted = [...tasks].sort(
-      (a, b) => a.startDayUtc.getTime() - b.startDayUtc.getTime(),
+      (a, b) => a.startUtc.getTime() - b.startUtc.getTime(),
     )
 
     for (let i = 0; i < sorted.length; i += 1) {
@@ -274,16 +271,16 @@ export function buildTaskOverlapConflicts(
       for (let j = i + 1; j < sorted.length; j += 1) {
         const right = sorted[j]
 
-        if (right.startDayUtc >= left.endDayUtc) {
+        if (right.startUtc >= left.endUtc) {
           break
         }
 
         if (
           windowsOverlap(
-            left.startDayUtc,
-            left.endDayUtc,
-            right.startDayUtc,
-            right.endDayUtc,
+            left.startUtc,
+            left.endUtc,
+            right.startUtc,
+            right.endUtc,
           )
         ) {
           conflicts.push({
@@ -292,13 +289,9 @@ export function buildTaskOverlapConflicts(
             taskAId: left.id,
             taskBId: right.id,
             overlapStartUtc:
-              left.startDayUtc > right.startDayUtc
-                ? left.startDayUtc
-                : right.startDayUtc,
+              left.startUtc > right.startUtc ? left.startUtc : right.startUtc,
             overlapEndUtc:
-              left.endDayUtc < right.endDayUtc
-                ? left.endDayUtc
-                : right.endDayUtc,
+              left.endUtc < right.endUtc ? left.endUtc : right.endUtc,
             reason: null,
           })
         }
@@ -338,10 +331,10 @@ export function buildUnavailabilityConflicts(
     for (const window of windows) {
       if (
         windowsOverlap(
-          assignment.startDayUtc,
-          assignment.endDayUtc,
-          window.startDayUtc,
-          window.endDayUtc,
+          assignment.startUtc,
+          assignment.endUtc,
+          window.startUtc,
+          window.endUtc,
         )
       ) {
         conflicts.push({
@@ -350,13 +343,13 @@ export function buildUnavailabilityConflicts(
           taskAId: assignment.id,
           taskBId: null,
           overlapStartUtc:
-            assignment.startDayUtc > window.startDayUtc
-              ? assignment.startDayUtc
-              : window.startDayUtc,
+            assignment.startUtc > window.startUtc
+              ? assignment.startUtc
+              : window.startUtc,
           overlapEndUtc:
-            assignment.endDayUtc < window.endDayUtc
-              ? assignment.endDayUtc
-              : window.endDayUtc,
+            assignment.endUtc < window.endUtc
+              ? assignment.endUtc
+              : window.endUtc,
           reason: window.reason,
         })
       }

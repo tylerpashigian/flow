@@ -11,10 +11,10 @@ export interface TaskModel {
   segmentId: string | null
   name: string
   color: 'SLATE' | 'BLUE' | 'GREEN' | 'AMBER' | 'ROSE' | 'VIOLET'
-  startDayUtc: Date
+  startUtc: Date
   durationDays: number
   estimatedEffortDays: number | null
-  endDayUtc: Date
+  endUtc: Date
   createdAt: Date
   updatedAt: Date
   taskProgressPercent?: number

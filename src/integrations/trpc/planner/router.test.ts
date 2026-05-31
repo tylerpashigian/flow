@@ -51,7 +51,7 @@ describe('planner router behavior', () => {
     vi.clearAllMocks()
   })
 
-  test('tasks.create computes endDayUtc from start + duration', async () => {
+  test('tasks.create computes endUtc from start + duration', async () => {
     prismaMock.plan.findUnique.mockResolvedValue({
       id: 'plan_1',
       name: 'Plan',
@@ -68,13 +68,13 @@ describe('planner router behavior', () => {
       planId: 'plan_1',
       name: 'Task A',
       color: 'BLUE',
-      startDayUtc: new Date('2026-03-31T08:00:00.000Z'),
+      startUtc: new Date('2026-03-31T08:00:00.000Z'),
       durationDays: 3,
       estimatedEffortDays: 4,
     })
 
-    expect(created.startDayUtc.toISOString()).toBe('2026-03-31T08:00:00.000Z')
-    expect(created.endDayUtc.toISOString()).toBe('2026-04-03T08:00:00.000Z')
+    expect(created.startUtc.toISOString()).toBe('2026-03-31T08:00:00.000Z')
+    expect(created.endUtc.toISOString()).toBe('2026-04-03T08:00:00.000Z')
     expect(created.estimatedEffortDays).toBe(4)
   })
 
@@ -493,7 +493,9 @@ describe('planner router behavior', () => {
       'resource_1',
       'resource_2',
     ])
-    expect(snapshot.segments.map((segment) => segment.id)).toEqual(['segment_1'])
+    expect(snapshot.segments.map((segment) => segment.id)).toEqual([
+      'segment_1',
+    ])
     expect(snapshot.tasks[0].assignees[0].resourceName).toBe('Zoe')
 
     expect(prismaMock.task.findMany).toHaveBeenCalledWith(

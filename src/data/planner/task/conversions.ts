@@ -9,7 +9,7 @@ import type { TaskFormModel, TaskModel } from './models'
 
 export const DEFAULT_TASK_COLOR = 'BLUE' as const
 
-function toUtcStartOfSelectedDay(date: Date): Date {
+function toLocalDayStartUtc(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
@@ -34,7 +34,7 @@ export function createDefaultTaskFormModel(startDate?: Date): TaskFormModel {
 export function toTaskFormModel(task: TaskModel): TaskFormModel {
   return {
     title: task.name,
-    startDate: task.startDayUtc,
+    startDate: task.startUtc,
     durationDays: String(task.durationDays),
     segmentId: task.segmentId ?? undefined,
     resourceId: task.assignees?.[0]?.resourceId,
@@ -65,7 +65,7 @@ export function toCreateTaskInput(
     segmentId: form.segmentId ?? null,
     name,
     color: DEFAULT_TASK_COLOR,
-    startDayUtc: toUtcStartOfSelectedDay(form.startDate),
+    startUtc: toLocalDayStartUtc(form.startDate),
     durationDays,
   }
 }
@@ -94,7 +94,7 @@ export function toUpdateTaskInput(
     segmentId: form.segmentId ?? null,
     name,
     color: DEFAULT_TASK_COLOR,
-    startDayUtc: toUtcStartOfSelectedDay(form.startDate),
+    startUtc: toLocalDayStartUtc(form.startDate),
     durationDays,
   }
 }

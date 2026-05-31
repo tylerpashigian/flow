@@ -104,7 +104,7 @@ export function buildPlannerBoardRows(
   for (const task of snapshot.tasks) {
     const assignee = task.assignees?.[0] ?? null
     const row = (assignee && rowMap.get(assignee.resourceId)) ?? unassignedRow
-    const startDayKey = toPlannerDayKey(task.startDayUtc)
+    const startDayKey = toPlannerDayKey(task.startUtc)
 
     row.tasks.push({
       id: task.id,
